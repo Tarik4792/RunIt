@@ -1,0 +1,127 @@
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+
+const MOCK_GAMES = [
+  { id: '1', sport: '🏀', title: 'Pickup Basketball', location: 'Rucker Park', distance: '0.3 mi', players: 8, max: 10, time: 'Now', level: 'All levels', address: '116th St & 8th Ave, New York, NY', description: 'Classic Rucker Park run. All skill levels welcome. Half court, make it take it.', host: 'Marcus J.' },
+  { id: '2', sport: '⚽', title: 'Soccer Run', location: 'Riverside Field', distance: '0.8 mi', players: 12, max: 18, time: 'In 30 min', level: 'Intermediate', address: 'Riverside Park, New York, NY', description: 'Casual 6v6 soccer. Bring your own cleats. We play rain or shine.', host: 'Diego R.' },
+  { id: '3', sport: '🏈', title: 'Tackle Football', location: 'Lincoln Park Field', distance: '1.8 mi', players: 9, max: 22, time: 'In 3 hrs', level: 'Intermediate', address: 'Lincoln Park, Jersey City, NJ', description: 'Full tackle, pads required. 11v11. Bring your helmet and mouthguard.', host: 'Tarik K.' },
+  { id: '4', sport: '🏈', title: 'Flag Football', location: 'Central Park', distance: '1.2 mi', players: 6, max: 14, time: 'In 1 hr', level: 'Casual', address: 'Central Park, New York, NY', description: 'No contact, just vibes. 7v7 flag football. Great for all ages.', host: 'Andre M.' },
+  { id: '5', sport: '🎾', title: 'Tennis Doubles', location: 'West Side Courts', distance: '1.5 mi', players: 2, max: 4, time: 'In 2 hrs', level: 'Advanced', address: 'West Side Tennis Club, New York, NY', description: 'Looking for two more for competitive doubles. USTA 4.0+ preferred.', host: 'Sarah L.' },
+  { id: '6', sport: '🏐', title: 'Beach Volleyball', location: 'East River Park', distance: '2.1 mi', players: 4, max: 8, time: 'Tomorrow 10am', level: 'All levels', address: 'East River Park, New York, NY', description: 'Chill beach volleyball. Sand courts. Bring sunscreen and good energy!', host: 'Priya S.' },
+];
+
+const MOCK_PLAYERS = ['Marcus', 'Jordan', 'Dre', 'Cam', 'Tyler', 'Nate', 'Zion', 'Kev'];
+
+export default function GameDetail() {
+  const router = useRouter();
+  const { id } = useLocalSearchParams();
+  const game = MOCK_GAMES.find(g => g.id === id);
+
+  if (!game) return (
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.notFound}>Game not found</Text>
+    </SafeAreaView>
+  );
+
+  const spots = game.max - game.players;
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text style={styles.backText}>← Back</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.hero}>
+          <Text style={styles.sportEmoji}>{game.sport}</Text>
+          <Text style={styles.title}>{game.title}</Text>
+          <Text style={styles.location}>📍 {game.location} · {game.distance}</Text>
+          <View style={styles.timeBadge}>
+            <Text style={styles.timeText}>{game.time}</Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.infoRow}>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Players</Text>
+              <Text style={styles.infoValue}>{game.players}/{game.max}</Text>
+            </View>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Spots Left</Text>
+              <Text style={[styles.infoValue, { color: spots <= 2 ? '#ff4444' : '#00ff87' }]}>{spots}</Text>
+            </View>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Level</Text>
+              <Text style={styles.infoValue}>{game.level}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          <Text style={styles.description}>{game.description}</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Location</Text>
+          <Text style={styles.address}>{game.address}</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Hosted by</Text>
+          <Text style={styles.host}>{game.host}</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Who's In</Text>
+          <View style={styles.playersGrid}>
+            {MOCK_PLAYERS.slice(0, game.players).map((player, i) => (
+              <View key={i} style={styles.playerChip}>
+                <Text style={styles.playerText}>{player}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.joinButton}>
+          <Text style={styles.joinText}>Join Game</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0a0a0a' },
+  header: { paddingHorizontal: 20, paddingTop: 16 },
+  backText: { color: '#00ff87', fontSize: 16 },
+  hero: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 },
+  sportEmoji: { fontSize: 64, marginBottom: 12 },
+  title: { color: '#ffffff', fontSize: 28, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
+  location: { color: '#666', fontSize: 14, marginBottom: 12 },
+  timeBadge: { backgroundColor: '#1a1a1a', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20 },
+  timeText: { color: '#00ff87', fontSize: 14, fontWeight: '600' },
+  section: { paddingHorizontal: 20, marginBottom: 24 },
+  sectionTitle: { color: '#666', fontSize: 12, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 },
+  infoRow: { flexDirection: 'row', gap: 12 },
+  infoCard: { flex: 1, backgroundColor: '#111', borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#1e1e1e' },
+  infoLabel: { color: '#666', fontSize: 12, marginBottom: 4 },
+  infoValue: { color: '#ffffff', fontSize: 20, fontWeight: 'bold' },
+  description: { color: '#ccc', fontSize: 15, lineHeight: 22 },
+  address: { color: '#ccc', fontSize: 15 },
+  host: { color: '#00ff87', fontSize: 15, fontWeight: '600' },
+  playersGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  playerChip: { backgroundColor: '#1a1a1a', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#2a2a2a' },
+  playerText: { color: '#ffffff', fontSize: 13 },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: '#0a0a0a', borderTopWidth: 1, borderTopColor: '#1e1e1e' },
+  joinButton: { backgroundColor: '#00ff87', borderRadius: 14, padding: 16, alignItems: 'center' },
+  joinText: { color: '#0a0a0a', fontSize: 16, fontWeight: 'bold' },
+  notFound: { color: '#fff', textAlign: 'center', marginTop: 100 },
+});
