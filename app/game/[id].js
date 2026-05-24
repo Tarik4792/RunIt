@@ -1,36 +1,74 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { getGame, deleteGame } from '../../lib/games';
-
-const PLAYERS = ['Marcus', 'Jordan', 'Dre', 'Cam', 'Tyler', 'Nate', 'Zion', 'Kev', 'DeShawn', 'Ray', 'Luis', 'Mateo'];
+import { useState, useEffect } from 'react';
+import { getGame, deleteGame, joinGame, leaveGame } from '../../lib/games';
+import { getSession, getProfile } from '../../lib/auth';
 
 export default function GameDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  const base = getGame(id);
+  const [game, setGame] = useState(null);
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [joined, setJoined] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  if (!base) return (
+  useEffect(() => {
+    async function load() {
+      const s = await getSession();
+      setSession(s);
+      if (s) {
+        const p = await getProfile(s.user.id);
+        setProfile(p);
+      }
+      const g = await getGame(id);
+      setGame(g);
+      if (s) setJoined(g.participants.some(p => p.user_id === s.user.id));
+      setLoading(false);
+    }
+    load();
+  }, [id]);
+
+  if (loading) return (
+    <SafeAreaView style={styles.container}>
+      <ActivityIndicator color="#00ff87" style={{ marginTop: 100 }} />
+    </SafeAreaView>
+  );
+
+  if (!game) return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.notFound}>Game not found</Text>
     </SafeAreaView>
   );
 
-  const isHost = base.host === 'You';
-  const players = joined ? base.players + 1 : base.players;
-  const spots = base.max - players;
-  const playerNames = [...PLAYERS.slice(0, base.players), ...(joined ? ['You'] : [])];
+  const isHost = session?.user.id === game.host_id;
+  const spots = game.max - game.players;
+
+  async function handleJoinLeave() {
+    if (!session) { router.push('/auth'); return; }
+    try {
+      if (joined) {
+        await leaveGame(game.id, session.user.id);
+        setJoined(false);
+        setGame(g => ({ ...g, players: g.players - 1 }));
+      } else {
+        await joinGame(game.id, session.user.id);
+        setJoined(true);
+        setGame(g => ({ ...g, players: g.players + 1 }));
+      }
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    }
+  }
 
   function handleDelete() {
-    Alert.alert(
-      'Cancel Game',
-      'Are you sure you want to cancel this game? All players will be removed.',
-      [
-        { text: 'Keep Game', style: 'cancel' },
-        { text: 'Cancel Game', style: 'destructive', onPress: () => { deleteGame(id); router.back(); } },
-      ]
-    );
+    Alert.alert('Cancel Game', 'Are you sure?', [
+      { text: 'Keep Game', style: 'cancel' },
+      { text: 'Cancel Game', style: 'destructive', onPress: async () => {
+        await deleteGame(game.id);
+        router.back();
+      }},
+    ]);
   }
 
   return (
@@ -48,11 +86,11 @@ export default function GameDetail() {
         </View>
 
         <View style={styles.hero}>
-          <Text style={styles.sportEmoji}>{base.sport}</Text>
-          <Text style={styles.title}>{base.title}</Text>
-          <Text style={styles.location}>📍 {base.location} · {base.distance}</Text>
+          <Text style={styles.sportEmoji}>{game.sport}</Text>
+          <Text style={styles.title}>{game.title}</Text>
+          <Text style={styles.location}>📍 {game.location}</Text>
           <View style={styles.timeBadge}>
-            <Text style={styles.timeText}>{base.time}</Text>
+            <Text style={styles.timeText}>{game.time}</Text>
           </View>
           {isHost && (
             <View style={styles.hostBadge}>
@@ -65,7 +103,7 @@ export default function GameDetail() {
           <View style={styles.infoRow}>
             <View style={styles.infoCard}>
               <Text style={styles.infoLabel}>Players</Text>
-              <Text style={styles.infoValue}>{players}/{base.max}</Text>
+              <Text style={styles.infoValue}>{game.players}/{game.max}</Text>
             </View>
             <View style={styles.infoCard}>
               <Text style={styles.infoLabel}>Spots Left</Text>
@@ -73,32 +111,29 @@ export default function GameDetail() {
             </View>
             <View style={styles.infoCard}>
               <Text style={styles.infoLabel}>Level</Text>
-              <Text style={styles.infoValue}>{base.level}</Text>
+              <Text style={styles.infoValue}>{game.level}</Text>
             </View>
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <Text style={styles.description}>{base.description}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Location</Text>
-          <Text style={styles.address}>{base.address}</Text>
-        </View>
+        {game.description ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>About</Text>
+            <Text style={styles.description}>{game.description}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Hosted by</Text>
-          <Text style={styles.host}>{base.host}</Text>
+          <Text style={styles.host}>{game.host_name}</Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Who's In · {players}</Text>
+          <Text style={styles.sectionTitle}>Who's In · {game.players}</Text>
           <View style={styles.playersGrid}>
-            {playerNames.map((name, i) => (
-              <View key={i} style={[styles.playerChip, name === 'You' && styles.playerChipYou]}>
-                <Text style={[styles.playerText, name === 'You' && styles.playerTextYou]}>{name}</Text>
+            {game.participantList.map((name, i) => (
+              <View key={i} style={[styles.playerChip, name === profile?.username && styles.playerChipYou]}>
+                <Text style={[styles.playerText, name === profile?.username && styles.playerTextYou]}>{name}</Text>
               </View>
             ))}
           </View>
@@ -115,7 +150,7 @@ export default function GameDetail() {
         ) : (
           <TouchableOpacity
             style={[styles.joinButton, joined && styles.leaveButton]}
-            onPress={() => setJoined(!joined)}
+            onPress={handleJoinLeave}
           >
             <Text style={[styles.joinText, joined && styles.leaveText]}>
               {joined ? "✓ You're In  —  Tap to Leave" : 'Join Game'}
@@ -147,7 +182,6 @@ const styles = StyleSheet.create({
   infoLabel: { color: '#666', fontSize: 12, marginBottom: 4 },
   infoValue: { color: '#ffffff', fontSize: 20, fontWeight: 'bold' },
   description: { color: '#ccc', fontSize: 15, lineHeight: 22 },
-  address: { color: '#ccc', fontSize: 15 },
   host: { color: '#00ff87', fontSize: 15, fontWeight: '600' },
   playersGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   playerChip: { backgroundColor: '#1a1a1a', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#2a2a2a' },

@@ -1,13 +1,14 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { addGame } from '../../lib/games';
+import { getSession, getProfile } from '../../lib/auth';
 
 const SPORTS = ['🏀', '⚽', '🏈', '🎾', '🏐', '🏒', '⚾', '🏉'];
 const LEVELS = ['Casual', 'All levels', 'Intermediate', 'Advanced'];
 const MAX_PLAYERS = ['4', '6', '8', '10', '12', '14', '16', '18', '20', '22'];
 const DAYS = ['Today', 'Tomorrow', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const TIMES = ['6:00am', '7:00am', '8:00am', '9:00am', '10:00am', '11:00am', '12:00pm', '1:00pm', '2:00pm', '3:00pm', '4:00pm', '5:00pm', '6:00pm', '7:00pm', '8:00pm', '9:00pm'];
+const TIMES = ['6:00am','7:00am','8:00am','9:00am','10:00am','11:00am','12:00pm','1:00pm','2:00pm','3:00pm','4:00pm','5:00pm','6:00pm','7:00pm','8:00pm','9:00pm'];
 
 export default function CreateGame() {
   const router = useRouter();
@@ -18,117 +19,83 @@ export default function CreateGame() {
   const [time, setTime] = useState('5:00pm');
   const [maxPlayers, setMaxPlayers] = useState('10');
   const [level, setLevel] = useState('All levels');
+  const [loading, setLoading] = useState(false);
 
-  function handleCreate() {
-    if (!title || !location) {
-      alert('Please fill in title and location.');
-      return;
+  async function handleCreate() {
+    if (!title || !location) { Alert.alert('Fill in title and location'); return; }
+    setLoading(true);
+    try {
+      const session = await getSession();
+      if (!session) { Alert.alert('Not logged in', 'Please sign in first'); router.replace('/auth'); return; }
+      const profile = await getProfile(session.user.id);
+      await addGame({ sport, title, location, time: `${day} ${time}`, max: parseInt(maxPlayers), level, hostId: session.user.id, hostName: profile.username });
+      router.replace('/');
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setLoading(false);
     }
-    addGame({ sport, title, location, time: `${day} ${time}`, max: parseInt(maxPlayers), level });
-    router.back();
   }
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.replace('/')}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>New Game</Text>
         <View style={{ width: 60 }} />
       </View>
-
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-
         <Text style={styles.label}>Sport</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {SPORTS.map((s) => (
-            <TouchableOpacity
-              key={s}
-              style={[styles.sportChip, sport === s && styles.sportChipActive]}
-              onPress={() => setSport(s)}
-            >
+            <TouchableOpacity key={s} style={[styles.sportChip, sport === s && styles.sportChipActive]} onPress={() => setSport(s)}>
               <Text style={styles.sportEmoji}>{s}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
-
         <Text style={styles.label}>Game Title</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Sunday Hoops"
-          placeholderTextColor="#444"
-          value={title}
-          onChangeText={setTitle}
-        />
-
+        <TextInput style={styles.input} placeholder="e.g. Sunday Hoops" placeholderTextColor="#444" value={title} onChangeText={setTitle} />
         <Text style={styles.label}>Location</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Rucker Park"
-          placeholderTextColor="#444"
-          value={location}
-          onChangeText={setLocation}
-        />
-
+        <TextInput style={styles.input} placeholder="e.g. Rucker Park" placeholderTextColor="#444" value={location} onChangeText={setLocation} />
         <Text style={styles.label}>Day</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {DAYS.map((d) => (
-            <TouchableOpacity
-              key={d}
-              style={[styles.chip, day === d && styles.chipActive]}
-              onPress={() => setDay(d)}
-            >
+            <TouchableOpacity key={d} style={[styles.chip, day === d && styles.chipActive]} onPress={() => setDay(d)}>
               <Text style={[styles.chipText, day === d && styles.chipTextActive]}>{d}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
-
         <Text style={styles.label}>Time</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {TIMES.map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.chip, time === t && styles.chipActive]}
-              onPress={() => setTime(t)}
-            >
+            <TouchableOpacity key={t} style={[styles.chip, time === t && styles.chipActive]} onPress={() => setTime(t)}>
               <Text style={[styles.chipText, time === t && styles.chipTextActive]}>{t}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
-
         <Text style={styles.label}>Max Players</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {MAX_PLAYERS.map((n) => (
-            <TouchableOpacity
-              key={n}
-              style={[styles.chip, maxPlayers === n && styles.chipActive]}
-              onPress={() => setMaxPlayers(n)}
-            >
+            <TouchableOpacity key={n} style={[styles.chip, maxPlayers === n && styles.chipActive]} onPress={() => setMaxPlayers(n)}>
               <Text style={[styles.chipText, maxPlayers === n && styles.chipTextActive]}>{n}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
-
         <Text style={styles.label}>Skill Level</Text>
         <View style={styles.levelRow}>
           {LEVELS.map((l) => (
-            <TouchableOpacity
-              key={l}
-              style={[styles.levelChip, level === l && styles.chipActive]}
-              onPress={() => setLevel(l)}
-            >
+            <TouchableOpacity key={l} style={[styles.levelChip, level === l && styles.chipActive]} onPress={() => setLevel(l)}>
               <Text style={[styles.chipText, level === l && styles.chipTextActive]}>{l}</Text>
             </TouchableOpacity>
           ))}
         </View>
-
         <View style={{ height: 120 }} />
       </ScrollView>
-
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.createButton} onPress={handleCreate}>
-          <Text style={styles.createText}>{sport} Create Game · {day} {time}</Text>
+        <TouchableOpacity style={styles.createButton} onPress={handleCreate} disabled={loading}>
+          {loading ? <ActivityIndicator color="#0a0a0a" /> : <Text style={styles.createText}>{sport} Create Game · {day} {time}</Text>}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

@@ -1,20 +1,37 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useState, useCallback } from 'react';
 import { getGames } from '../lib/games';
+import { getSession, signOut } from '../lib/auth';
 
 const FILTERS = ['All', '🏀', '⚽', '🏈', '🎾', '🏐', '🏒', '⚾', '🏉'];
 
 export default function Home() {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState('All');
-  const [games, setGames] = useState(getGames());
+  const [games, setGames] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
-      setGames(getGames());
+      async function load() {
+        setLoading(true);
+        const s = await getSession();
+        if (!s) { router.replace('/auth'); return; }
+        const data = await getGames();
+        setGames(data);
+        setLoading(false);
+      }
+      load();
     }, [])
   );
+
+  async function handleSignOut() {
+    if (confirm('Sign out?')) {
+      await signOut();
+      router.replace('/auth');
+    }
+  }
 
   const filtered = activeFilter === 'All' ? games : games.filter(g => g.sport === activeFilter);
 
@@ -25,9 +42,14 @@ export default function Home() {
           <Text style={styles.greeting}>Good morning 👋</Text>
           <Text style={styles.location}>📍 Jersey City, NJ</Text>
         </View>
-        <TouchableOpacity style={styles.createButton} onPress={() => router.push('/game/create')}>
-          <Text style={styles.createButtonText}>+ Game</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.createButton} onPress={() => router.push('/game/create')}>
+            <Text style={styles.createButtonText}>+ Game</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.filterWrapper}>
@@ -46,7 +68,9 @@ export default function Home() {
 
       <ScrollView style={styles.feed} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>Games Near You</Text>
-        {filtered.length === 0 ? (
+        {loading ? (
+          <ActivityIndicator color="#00ff87" style={{ marginTop: 60 }} />
+        ) : filtered.length === 0 ? (
           <Text style={styles.emptyText}>No games nearby for this sport</Text>
         ) : (
           filtered.map((game) => (
@@ -55,7 +79,7 @@ export default function Home() {
                 <Text style={styles.sportEmoji}>{game.sport}</Text>
                 <View style={styles.cardInfo}>
                   <Text style={styles.cardTitle}>{game.title}</Text>
-                  <Text style={styles.cardLocation}>{game.location} · {game.distance}</Text>
+                  <Text style={styles.cardLocation}>{game.location}</Text>
                 </View>
                 <View style={styles.timeBadge}>
                   <Text style={styles.timeText}>{game.time}</Text>
@@ -84,8 +108,11 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
   greeting: { color: '#ffffff', fontSize: 22, fontWeight: 'bold' },
   location: { color: '#666', fontSize: 13, marginTop: 2 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   createButton: { backgroundColor: '#00ff87', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
   createButtonText: { color: '#0a0a0a', fontWeight: 'bold', fontSize: 14 },
+  signOutButton: { paddingHorizontal: 10, paddingVertical: 8 },
+  signOutText: { color: '#666', fontSize: 13 },
   filterWrapper: { height: 48, marginBottom: 8 },
   filterRow: { paddingHorizontal: 20, gap: 8, alignItems: 'center' },
   filterChip: { backgroundColor: '#1a1a1a', paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: '#2a2a2a' },
