@@ -33,7 +33,7 @@ export default function AuthScreen() {
         if (data.user) {
           await supabase.from('profiles').upsert({
             id: data.user.id,
-            name: name.trim(),
+            username: name.trim(),
             email: email.trim(),
           });
         }

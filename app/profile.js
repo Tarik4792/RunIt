@@ -1,11 +1,13 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { supabase } from '../lib/supabase';
 import { useState, useCallback } from 'react';
 import { getGames } from '../lib/games';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../lib/auth';
 
 export default function Profile() {
   const router = useRouter();
+  const { profile } = useAuth();
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -15,7 +17,7 @@ export default function Profile() {
         try {
           setLoading(true);
           const data = await getGames();
-          setGames(data.filter(g => g.host_name === 'You'));
+          setGames(data.filter(g => g.host_name === (profile?.username ?? 'You')));
         } catch (e) {
           console.error(e);
         } finally {
@@ -23,7 +25,7 @@ export default function Profile() {
         }
       }
       load();
-    }, [])
+    }, [profile])
   );
 
   const sportCounts = games.reduce((acc, g) => {
@@ -32,6 +34,8 @@ export default function Profile() {
   }, {});
 
   const topSport = Object.entries(sportCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '🏃';
+  const displayName = profile?.username ?? 'You';
+  const initial = displayName.charAt(0).toUpperCase();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -39,13 +43,13 @@ export default function Profile() {
 
         <View style={styles.hero}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>T</Text>
+            <Text style={styles.avatarText}>{initial}</Text>
           </View>
-          <Text style={styles.name}>Tarik</Text>
+          <Text style={styles.name}>{displayName}</Text>
           <Text style={styles.location}>📍 Jersey City, NJ</Text>
-        <TouchableOpacity onPress={() => supabase.auth.signOut()} style={styles.signOutBtn}>
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={() => supabase.auth.signOut()} style={styles.signOutBtn}>
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.statsRow}>
@@ -121,6 +125,8 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 32, fontWeight: '800', color: '#000' },
   name: { color: '#fff', fontSize: 22, fontWeight: '700' },
   location: { color: '#888', fontSize: 14, marginTop: 4 },
+  signOutBtn: { marginTop: 12, borderWidth: 1, borderColor: '#ff4444', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6 },
+  signOutText: { color: '#ff4444', fontSize: 13, fontWeight: '600' },
   statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginBottom: 8 },
   statCard: { flex: 1, backgroundColor: '#111', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#222' },
   statValue: { color: '#fff', fontSize: 22, fontWeight: '800' },
@@ -142,7 +148,5 @@ const styles = StyleSheet.create({
   timeBadge: { backgroundColor: '#1a1a1a', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#333' },
   timeBadgeText: { color: '#00ff87', fontSize: 12, fontWeight: '600' },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between' },
-  signOutBtn: { marginTop: 12, borderWidth: 1, borderColor: "#ff4444", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6 },
-  signOutText: { color: "#ff4444", fontSize: 13, fontWeight: "600" },
   cardMeta: { color: '#666', fontSize: 12 },
 });
