@@ -8,7 +8,11 @@
     "userInterfaceStyle": "dark",
     "scheme": "runit",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tarik4792.runit",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,6 +29,12 @@
     "plugins": [
       "expo-router",
       "expo-status-bar"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cc6d827f-83e4-4649-825b-52e2d3c2179e"
+      }
+    }
   }
 }

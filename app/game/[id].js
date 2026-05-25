@@ -202,8 +202,8 @@ export default function GameDetail() {
             <View style={styles.attendanceRow}>
               <TouchableOpacity
                 style={[styles.attendanceBtn, checkedIn && styles.attendanceBtnActive]}
-                onPress={handleCheckIn}
-                disabled={checkedIn}
+                onPress={() => checkedIn ? setCheckedIn(false) : handleCheckIn()}
+                
               >
                 <Text style={styles.attendanceBtnIcon}>✅</Text>
                 <Text style={[styles.attendanceBtnText, checkedIn && { color: '#00ff87' }]}>
@@ -216,8 +216,8 @@ export default function GameDetail() {
 
               <TouchableOpacity
                 style={[styles.attendanceBtn, leftEarly && styles.attendanceBtnLeft]}
-                onPress={handleLeftEarly}
-                disabled={leftEarly}
+                onPress={() => leftEarly ? setLeftEarly(false) : handleLeftEarly()}
+                
               >
                 <Text style={styles.attendanceBtnIcon}>🏃💨</Text>
                 <Text style={[styles.attendanceBtnText, leftEarly && { color: '#ff9500' }]}>

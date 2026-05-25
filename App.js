@@ -1,20 +1,17 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { registerForPushNotifications } from './lib/notifications';
+import * as Notifications from 'expo-notifications';
+import { router } from 'expo-router';
 
 export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
-}
+  useEffect(() => {
+    registerForPushNotifications();
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+    const sub = Notifications.addNotificationResponseReceivedListener(response => {
+      const gameId = response.notification.request.content.data?.gameId;
+      if (gameId) router.push(`/game/${gameId}`);
+    });
+
+    return () => sub.remove();
+  }, []);
+}
