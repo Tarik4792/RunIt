@@ -1,97 +1,95 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { getGame, deleteGame, joinGame, leaveGame } from '../../lib/games';
-import { getSession, getProfile } from '../../lib/auth';
+import { getGame, deleteGame } from '../../lib/games';
 
 export default function GameDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const [game, setGame] = useState(null);
-  const [session, setSession] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [joined, setJoined] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [joined, setJoined] = useState(false);
 
   useEffect(() => {
     async function load() {
-      const s = await getSession();
-      setSession(s);
-      if (s) {
-        const p = await getProfile(s.user.id);
-        setProfile(p);
+      try {
+        const data = await getGame(id);
+        setGame(data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
       }
-      const g = await getGame(id);
-      setGame(g);
-      if (s) setJoined(g.participants.some(p => p.user_id === s.user.id));
-      setLoading(false);
     }
     load();
   }, [id]);
 
-  if (loading) return (
-    <SafeAreaView style={styles.container}>
-      <ActivityIndicator color="#00ff87" style={{ marginTop: 100 }} />
-    </SafeAreaView>
-  );
-
-  if (!game) return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.notFound}>Game not found</Text>
-    </SafeAreaView>
-  );
-
-  const isHost = session?.user.id === game.host_id;
-  const spots = game.max - game.players;
-
-  async function handleJoinLeave() {
-    if (!session) { router.push('/auth'); return; }
-    try {
-      if (joined) {
-        await leaveGame(game.id, session.user.id);
-        setJoined(false);
-        setGame(g => ({ ...g, players: g.players - 1 }));
-      } else {
-        await joinGame(game.id, session.user.id);
-        setJoined(true);
-        setGame(g => ({ ...g, players: g.players + 1 }));
-      }
-    } catch (e) {
-      Alert.alert('Error', e.message);
-    }
+  function handleJoin() {
+    setJoined(j => !j);
   }
 
-  function handleDelete() {
-    Alert.alert('Cancel Game', 'Are you sure?', [
-      { text: 'Keep Game', style: 'cancel' },
-      { text: 'Cancel Game', style: 'destructive', onPress: async () => {
-        await deleteGame(game.id);
-        router.back();
-      }},
+  async function handleDelete() {
+    Alert.alert('Cancel Game', 'Are you sure you want to delete this game?', [
+      { text: 'Keep it', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await deleteGame(id);
+            router.back();
+          } catch (e) {
+            Alert.alert('Error', e.message);
+          }
+        }
+      }
     ]);
   }
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.center}>
+          <ActivityIndicator color="#00ff87" size="large" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!game) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.center}>
+          <Text style={styles.errorText}>Game not found</Text>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text style={styles.backLink}>← Go back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const isHost = game.host_name === 'You';
+  const basePlayers = game.players?.length ?? 0;
+  const players = joined ? basePlayers + 1 : basePlayers;
+  const spotsLeft = game.max_players - players;
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.backText}>← Back</Text>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+        {isHost && (
+          <TouchableOpacity onPress={handleDelete}>
+            <Text style={styles.cancelText}>Cancel Game</Text>
           </TouchableOpacity>
-          {isHost && (
-            <TouchableOpacity onPress={handleDelete}>
-              <Text style={styles.deleteText}>Cancel Game</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        )}
+      </View>
 
+      <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
-          <Text style={styles.sportEmoji}>{game.sport}</Text>
-          <Text style={styles.title}>{game.title}</Text>
-          <Text style={styles.location}>📍 {game.location}</Text>
-          <View style={styles.timeBadge}>
-            <Text style={styles.timeText}>{game.time}</Text>
-          </View>
+          <Text style={styles.heroEmoji}>{game.sport}</Text>
+          <Text style={styles.heroTitle}>{game.title}</Text>
+          <Text style={styles.heroLocation}>📍 {game.location}</Text>
           {isHost && (
             <View style={styles.hostBadge}>
               <Text style={styles.hostBadgeText}>You're hosting</Text>
@@ -99,101 +97,113 @@ export default function GameDetail() {
           )}
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.infoRow}>
-            <View style={styles.infoCard}>
-              <Text style={styles.infoLabel}>Players</Text>
-              <Text style={styles.infoValue}>{game.players}/{game.max}</Text>
-            </View>
-            <View style={styles.infoCard}>
-              <Text style={styles.infoLabel}>Spots Left</Text>
-              <Text style={[styles.infoValue, { color: spots <= 2 ? '#ff4444' : '#00ff87' }]}>{spots}</Text>
-            </View>
-            <View style={styles.infoCard}>
-              <Text style={styles.infoLabel}>Level</Text>
-              <Text style={styles.infoValue}>{game.level}</Text>
-            </View>
+        <View style={styles.infoRow}>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoValue}>{players}</Text>
+            <Text style={styles.infoLabel}>Players</Text>
+          </View>
+          <View style={styles.infoCard}>
+            <Text style={[styles.infoValue, spotsLeft <= 2 && { color: '#ff4444' }]}>{spotsLeft}</Text>
+            <Text style={styles.infoLabel}>Spots Left</Text>
+          </View>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoValue}>{game.level}</Text>
+            <Text style={styles.infoLabel}>Level</Text>
           </View>
         </View>
 
-        {game.description ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Time</Text>
+          <Text style={styles.sectionText}>{game.time}</Text>
+        </View>
+
+        {game.description && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>About</Text>
-            <Text style={styles.description}>{game.description}</Text>
+            <Text style={styles.sectionText}>{game.description}</Text>
           </View>
-        ) : null}
+        )}
+
+        {game.address && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Address</Text>
+            <Text style={styles.sectionText}>{game.address}</Text>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Hosted by</Text>
-          <Text style={styles.host}>{game.host_name}</Text>
+          <Text style={[styles.sectionText, { color: '#00ff87' }]}>{game.host_name}</Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Who's In · {game.players}</Text>
-          <View style={styles.playersGrid}>
-            {game.participantList.map((name, i) => (
-              <View key={i} style={[styles.playerChip, name === profile?.username && styles.playerChipYou]}>
-                <Text style={[styles.playerText, name === profile?.username && styles.playerTextYou]}>{name}</Text>
+          <Text style={styles.sectionTitle}>Who's In</Text>
+          <View style={styles.playerChips}>
+            {(game.players ?? []).map((p, i) => (
+              <View key={i} style={styles.playerChip}>
+                <Text style={styles.playerChipText}>{p}</Text>
               </View>
             ))}
+            {joined && (
+              <View style={[styles.playerChip, styles.playerChipYou]}>
+                <Text style={[styles.playerChipText, { color: '#000' }]}>You</Text>
+              </View>
+            )}
+            {!joined && players === 0 && (
+              <Text style={styles.sectionText}>No one yet — be the first!</Text>
+            )}
           </View>
         </View>
 
-        <View style={{ height: 100 }} />
-      </ScrollView>
-
-      <View style={styles.footer}>
-        {isHost ? (
-          <TouchableOpacity style={styles.cancelButton} onPress={handleDelete}>
-            <Text style={styles.cancelText}>🗑 Delete Game</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={[styles.joinButton, joined && styles.leaveButton]}
-            onPress={handleJoinLeave}
-          >
-            <Text style={[styles.joinText, joined && styles.leaveText]}>
-              {joined ? "✓ You're In  —  Tap to Leave" : 'Join Game'}
-            </Text>
+        {isHost && (
+          <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
+            <Text style={styles.deleteBtnText}>🗑 Delete Game</Text>
           </TouchableOpacity>
         )}
-      </View>
+
+        <View style={{ height: 120 }} />
+      </ScrollView>
+
+      {!isHost && (
+        <View style={styles.joinContainer}>
+          <TouchableOpacity style={[styles.joinBtn, joined && styles.joinBtnActive]} onPress={handleJoin}>
+            <Text style={styles.joinBtnText}>{joined ? '✓ You\'re In — Tap to Leave' : 'Join Game'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  header: { paddingHorizontal: 20, paddingTop: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#000' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
   backText: { color: '#00ff87', fontSize: 16 },
-  deleteText: { color: '#ff4444', fontSize: 14 },
+  cancelText: { color: '#ff4444', fontSize: 14 },
+  errorText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  backLink: { color: '#00ff87', fontSize: 15, marginTop: 12 },
   hero: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 },
-  sportEmoji: { fontSize: 64, marginBottom: 12 },
-  title: { color: '#ffffff', fontSize: 28, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
-  location: { color: '#666', fontSize: 14, marginBottom: 12 },
-  timeBadge: { backgroundColor: '#1a1a1a', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginBottom: 10 },
-  timeText: { color: '#00ff87', fontSize: 14, fontWeight: '600' },
-  hostBadge: { backgroundColor: '#1a1a1a', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: '#00ff87' },
-  hostBadgeText: { color: '#00ff87', fontSize: 12, fontWeight: '600' },
-  section: { paddingHorizontal: 20, marginBottom: 24 },
-  sectionTitle: { color: '#666', fontSize: 12, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 },
-  infoRow: { flexDirection: 'row', gap: 12 },
-  infoCard: { flex: 1, backgroundColor: '#111', borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#1e1e1e' },
-  infoLabel: { color: '#666', fontSize: 12, marginBottom: 4 },
-  infoValue: { color: '#ffffff', fontSize: 20, fontWeight: 'bold' },
-  description: { color: '#ccc', fontSize: 15, lineHeight: 22 },
-  host: { color: '#00ff87', fontSize: 15, fontWeight: '600' },
-  playersGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  playerChip: { backgroundColor: '#1a1a1a', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#2a2a2a' },
-  playerChipYou: { backgroundColor: '#003d20', borderColor: '#00ff87' },
-  playerText: { color: '#ffffff', fontSize: 13 },
-  playerTextYou: { color: '#00ff87', fontWeight: '700' },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: '#0a0a0a', borderTopWidth: 1, borderTopColor: '#1e1e1e' },
-  joinButton: { backgroundColor: '#00ff87', borderRadius: 14, padding: 16, alignItems: 'center' },
-  leaveButton: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#333' },
-  joinText: { color: '#0a0a0a', fontSize: 16, fontWeight: 'bold' },
-  leaveText: { color: '#666' },
-  cancelButton: { backgroundColor: '#1a1a1a', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#ff4444' },
-  cancelText: { color: '#ff4444', fontSize: 16, fontWeight: 'bold' },
-  notFound: { color: '#fff', textAlign: 'center', marginTop: 100 },
+  heroEmoji: { fontSize: 64, marginBottom: 12 },
+  heroTitle: { color: '#fff', fontSize: 26, fontWeight: '800', textAlign: 'center' },
+  heroLocation: { color: '#888', fontSize: 15, marginTop: 6 },
+  hostBadge: { marginTop: 12, backgroundColor: '#003d1f', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
+  hostBadgeText: { color: '#00ff87', fontSize: 13, fontWeight: '700' },
+  infoRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginBottom: 8 },
+  infoCard: { flex: 1, backgroundColor: '#111', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#222' },
+  infoValue: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  infoLabel: { color: '#888', fontSize: 12, marginTop: 4 },
+  section: { paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#111' },
+  sectionTitle: { color: '#888', fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
+  sectionText: { color: '#fff', fontSize: 15, lineHeight: 22 },
+  playerChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  playerChip: { backgroundColor: '#1a1a1a', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 1, borderColor: '#333' },
+  playerChipYou: { backgroundColor: '#00ff87', borderColor: '#00ff87' },
+  playerChipText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  deleteBtn: { marginHorizontal: 20, marginTop: 16, borderWidth: 1, borderColor: '#ff4444', borderRadius: 14, padding: 16, alignItems: 'center' },
+  deleteBtnText: { color: '#ff4444', fontSize: 15, fontWeight: '700' },
+  joinContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: '#000', borderTopWidth: 1, borderTopColor: '#111' },
+  joinBtn: { backgroundColor: '#00ff87', borderRadius: 16, padding: 18, alignItems: 'center' },
+  joinBtnActive: { backgroundColor: '#111', borderWidth: 1, borderColor: '#00ff87' },
+  joinBtnText: { color: '#000', fontSize: 16, fontWeight: '800' },
 });
