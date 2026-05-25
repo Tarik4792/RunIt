@@ -10,6 +10,8 @@ export default function GameDetail() {
   const [game, setGame] = useState(null);
   const [loading, setLoading] = useState(true);
   const [joined, setJoined] = useState(false);
+  const [checkedIn, setCheckedIn] = useState(false);
+  const [leftEarly, setLeftEarly] = useState(false);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -31,7 +33,6 @@ export default function GameDetail() {
 
   useEffect(() => {
     if (!id) return;
-
     async function loadMessages() {
       const { data } = await supabase
         .from('messages')
@@ -41,8 +42,6 @@ export default function GameDetail() {
       if (data) setMessages(data);
     }
     loadMessages();
-
-    // polling instead of realtime
     const interval = setInterval(loadMessages, 3000);
     const channel = supabase
       .channel(`messages:${id}`)
@@ -56,7 +55,6 @@ export default function GameDetail() {
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
       })
       .subscribe();
-
     return () => { clearInterval(interval); supabase.removeChannel(channel); };
   }, [id]);
 
@@ -72,53 +70,67 @@ export default function GameDetail() {
     setSending(false);
   }
 
-  function handleJoin() {
-    setJoined(j => !j);
+  async function handleCheckIn() {
+    if (checkedIn) return;
+    setCheckedIn(true);
+    setLeftEarly(false);
+    const current = game.checked_in ?? [];
+    const updated = [...current.filter(n => n !== 'You'), 'You'];
+    const { error } = await supabase
+      .from('games')
+      .update({ checked_in: updated, left_early: (game.left_early ?? []).filter(n => n !== 'You') })
+      .eq('id', id);
+    if (!error) setGame(g => ({ ...g, checked_in: updated }));
   }
+
+  async function handleLeftEarly() {
+    if (leftEarly) return;
+    setLeftEarly(true);
+    setCheckedIn(false);
+    const current = game.left_early ?? [];
+    const updated = [...current.filter(n => n !== 'You'), 'You'];
+    const { error } = await supabase
+      .from('games')
+      .update({ left_early: updated, checked_in: (game.checked_in ?? []).filter(n => n !== 'You') })
+      .eq('id', id);
+    if (!error) setGame(g => ({ ...g, left_early: updated }));
+  }
+
+  function handleJoin() { setJoined(j => !j); }
 
   async function handleDelete() {
     Alert.alert('Cancel Game', 'Are you sure you want to delete this game?', [
       { text: 'Keep it', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            await deleteGame(id);
-            router.back();
-          } catch (e) {
-            Alert.alert('Error', e.message);
-          }
+          try { await deleteGame(id); router.back(); }
+          catch (e) { Alert.alert('Error', e.message); }
         }
       }
     ]);
   }
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.center}>
-          <ActivityIndicator color="#00ff87" size="large" />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  if (loading) return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.center}><ActivityIndicator color="#00ff87" size="large" /></View>
+    </SafeAreaView>
+  );
 
-  if (!game) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.center}>
-          <Text style={styles.errorText}>Game not found</Text>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.backLink}>← Go back</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  if (!game) return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.center}>
+        <Text style={styles.errorText}>Game not found</Text>
+        <TouchableOpacity onPress={() => router.back()}><Text style={styles.backLink}>← Go back</Text></TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
 
   const isHost = game.host_name === 'You';
   const basePlayers = game.players?.length ?? 0;
   const players = joined ? basePlayers + 1 : basePlayers;
   const spotsLeft = game.max_players - players;
+  const checkedInList = game.checked_in ?? [];
+  const leftEarlyList = game.left_early ?? [];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -135,15 +147,12 @@ export default function GameDetail() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
+
           <View style={styles.hero}>
             <Text style={styles.heroEmoji}>{game.sport}</Text>
             <Text style={styles.heroTitle}>{game.title}</Text>
             <Text style={styles.heroLocation}>📍 {game.location}</Text>
-            {isHost && (
-              <View style={styles.hostBadge}>
-                <Text style={styles.hostBadgeText}>You're hosting</Text>
-              </View>
-            )}
+            {isHost && <View style={styles.hostBadge}><Text style={styles.hostBadgeText}>You're hosting</Text></View>}
           </View>
 
           <View style={styles.infoRow}>
@@ -184,10 +193,56 @@ export default function GameDetail() {
                   <Text style={[styles.playerChipText, { color: '#000' }]}>You</Text>
                 </View>
               )}
-              {!joined && players === 0 && (
-                <Text style={styles.sectionText}>No one yet — be the first!</Text>
-              )}
+              {!joined && players === 0 && <Text style={styles.sectionText}>No one yet — be the first!</Text>}
             </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Attendance</Text>
+            <View style={styles.attendanceRow}>
+              <TouchableOpacity
+                style={[styles.attendanceBtn, checkedIn && styles.attendanceBtnActive]}
+                onPress={handleCheckIn}
+                disabled={checkedIn}
+              >
+                <Text style={styles.attendanceBtnIcon}>✅</Text>
+                <Text style={[styles.attendanceBtnText, checkedIn && { color: '#00ff87' }]}>
+                  {checkedIn ? "You're in!" : 'Check In'}
+                </Text>
+                {checkedInList.length > 0 && (
+                  <Text style={styles.attendanceCount}>{checkedInList.length} here</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.attendanceBtn, leftEarly && styles.attendanceBtnLeft]}
+                onPress={handleLeftEarly}
+                disabled={leftEarly}
+              >
+                <Text style={styles.attendanceBtnIcon}>🏃💨</Text>
+                <Text style={[styles.attendanceBtnText, leftEarly && { color: '#ff9500' }]}>
+                  {leftEarly ? 'You left early' : 'Left Early'}
+                </Text>
+                {leftEarlyList.length > 0 && (
+                  <Text style={styles.attendanceCount}>{leftEarlyList.length} left</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {(checkedInList.length > 0 || leftEarlyList.length > 0) && (
+              <View style={styles.attendanceSummary}>
+                {checkedInList.length > 0 && (
+                  <Text style={styles.attendanceSummaryText}>
+                    ✅ Showed up: {checkedInList.join(', ')}
+                  </Text>
+                )}
+                {leftEarlyList.length > 0 && (
+                  <Text style={[styles.attendanceSummaryText, { color: '#ff9500' }]}>
+                    🏃 Left early: {leftEarlyList.join(', ')}
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
 
           <View style={styles.section}>
@@ -207,7 +262,6 @@ export default function GameDetail() {
                 })}
               </View>
             )}
-
             <View style={styles.inputRow}>
               <TextInput
                 style={styles.input}
@@ -240,7 +294,9 @@ export default function GameDetail() {
         {!isHost && (
           <View style={styles.joinContainer}>
             <TouchableOpacity style={[styles.joinBtn, joined && styles.joinBtnActive]} onPress={handleJoin}>
-              <Text style={[styles.joinBtnText, joined && { color: '#00ff87' }]}>{joined ? '✓ You\'re In — Tap to Leave' : 'Join Game'}</Text>
+              <Text style={[styles.joinBtnText, joined && { color: '#00ff87' }]}>
+                {joined ? '✓ You\'re In — Tap to Leave' : 'Join Game'}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -274,6 +330,15 @@ const styles = StyleSheet.create({
   playerChip: { backgroundColor: '#1a1a1a', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 1, borderColor: '#333' },
   playerChipYou: { backgroundColor: '#00ff87', borderColor: '#00ff87' },
   playerChipText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  attendanceRow: { flexDirection: 'row', gap: 12 },
+  attendanceBtn: { flex: 1, backgroundColor: '#111', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#222', gap: 6 },
+  attendanceBtnActive: { borderColor: '#00ff87', backgroundColor: '#003d1f' },
+  attendanceBtnLeft: { borderColor: '#ff9500', backgroundColor: '#2a1a00' },
+  attendanceBtnIcon: { fontSize: 24 },
+  attendanceBtnText: { color: '#aaa', fontSize: 13, fontWeight: '600' },
+  attendanceCount: { color: '#555', fontSize: 11 },
+  attendanceSummary: { marginTop: 12, gap: 4 },
+  attendanceSummaryText: { color: '#00ff87', fontSize: 13 },
   emptyChat: { color: '#555', fontSize: 14, fontStyle: 'italic', marginBottom: 12 },
   messageList: { gap: 8, marginBottom: 12 },
   messageBubble: { backgroundColor: '#1a1a1a', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, alignSelf: 'flex-start', maxWidth: '80%', borderWidth: 1, borderColor: '#222' },
