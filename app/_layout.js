@@ -1,7 +1,20 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter, useSegments } from 'expo-router';
 import { Text } from 'react-native';
+import { useEffect } from 'react';
+import { AuthProvider, useAuth } from '../lib/auth';
 
-export default function Layout() {
+function RootLayout() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const segments = useSegments();
+
+  useEffect(() => {
+    if (loading) return;
+    const inAuth = segments[0] === 'auth';
+    if (!user && !inAuth) router.replace('/auth');
+    else if (user && inAuth) router.replace('/');
+  }, [user, loading, segments]);
+
   return (
     <Tabs
       screenOptions={{
@@ -40,5 +53,13 @@ export default function Layout() {
       <Tabs.Screen name="game/create" options={{ href: null }} />
       <Tabs.Screen name="auth/index" options={{ href: null }} />
     </Tabs>
+  );
+}
+
+export default function Layout() {
+  return (
+    <AuthProvider>
+      <RootLayout />
+    </AuthProvider>
   );
 }

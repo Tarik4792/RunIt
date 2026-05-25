@@ -22,6 +22,8 @@ export default function GameDetail() {
       try {
         const data = await getGame(id);
         setGame(data);
+        setCheckedIn((data.checked_in ?? []).includes('You'));
+        setLeftEarly((data.left_early ?? []).includes('You'));
       } catch (e) {
         console.error(e);
       } finally {
@@ -71,29 +73,29 @@ export default function GameDetail() {
   }
 
   async function handleCheckIn() {
-    if (checkedIn) return;
-    setCheckedIn(true);
+    const newVal = !checkedIn;
+    setCheckedIn(newVal);
     setLeftEarly(false);
     const current = game.checked_in ?? [];
-    const updated = [...current.filter(n => n !== 'You'), 'You'];
+    const updated = newVal ? [...current.filter(n => n !== 'You'), 'You'] : current.filter(n => n !== 'You');
     const { error } = await supabase
       .from('games')
       .update({ checked_in: updated, left_early: (game.left_early ?? []).filter(n => n !== 'You') })
       .eq('id', id);
-    if (!error) setGame(g => ({ ...g, checked_in: updated }));
+    if (!error) setGame(g => ({ ...g, checked_in: updated, left_early: (g.left_early ?? []).filter(n => n !== 'You') }));
   }
 
   async function handleLeftEarly() {
-    if (leftEarly) return;
-    setLeftEarly(true);
+    const newVal = !leftEarly;
+    setLeftEarly(newVal);
     setCheckedIn(false);
     const current = game.left_early ?? [];
-    const updated = [...current.filter(n => n !== 'You'), 'You'];
+    const updated = newVal ? [...current.filter(n => n !== 'You'), 'You'] : current.filter(n => n !== 'You');
     const { error } = await supabase
       .from('games')
       .update({ left_early: updated, checked_in: (game.checked_in ?? []).filter(n => n !== 'You') })
       .eq('id', id);
-    if (!error) setGame(g => ({ ...g, left_early: updated }));
+    if (!error) setGame(g => ({ ...g, left_early: updated, checked_in: (g.checked_in ?? []).filter(n => n !== 'You') }));
   }
 
   function handleJoin() { setJoined(j => !j); }
@@ -147,7 +149,6 @@ export default function GameDetail() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
-
           <View style={styles.hero}>
             <Text style={styles.heroEmoji}>{game.sport}</Text>
             <Text style={styles.heroTitle}>{game.title}</Text>
@@ -202,8 +203,7 @@ export default function GameDetail() {
             <View style={styles.attendanceRow}>
               <TouchableOpacity
                 style={[styles.attendanceBtn, checkedIn && styles.attendanceBtnActive]}
-                onPress={() => checkedIn ? setCheckedIn(false) : handleCheckIn()}
-                
+                onPress={handleCheckIn}
               >
                 <Text style={styles.attendanceBtnIcon}>✅</Text>
                 <Text style={[styles.attendanceBtnText, checkedIn && { color: '#00ff87' }]}>
@@ -216,8 +216,7 @@ export default function GameDetail() {
 
               <TouchableOpacity
                 style={[styles.attendanceBtn, leftEarly && styles.attendanceBtnLeft]}
-                onPress={() => leftEarly ? setLeftEarly(false) : handleLeftEarly()}
-                
+                onPress={handleLeftEarly}
               >
                 <Text style={styles.attendanceBtnIcon}>🏃💨</Text>
                 <Text style={[styles.attendanceBtnText, leftEarly && { color: '#ff9500' }]}>
@@ -232,14 +231,10 @@ export default function GameDetail() {
             {(checkedInList.length > 0 || leftEarlyList.length > 0) && (
               <View style={styles.attendanceSummary}>
                 {checkedInList.length > 0 && (
-                  <Text style={styles.attendanceSummaryText}>
-                    ✅ Showed up: {checkedInList.join(', ')}
-                  </Text>
+                  <Text style={styles.attendanceSummaryText}>✅ Showed up: {checkedInList.join(', ')}</Text>
                 )}
                 {leftEarlyList.length > 0 && (
-                  <Text style={[styles.attendanceSummaryText, { color: '#ff9500' }]}>
-                    🏃 Left early: {leftEarlyList.join(', ')}
-                  </Text>
+                  <Text style={[styles.attendanceSummaryText, { color: '#ff9500' }]}>🏃 Left early: {leftEarlyList.join(', ')}</Text>
                 )}
               </View>
             )}

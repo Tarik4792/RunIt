@@ -1,30 +1,46 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { signIn, signUp } from '../../lib/auth';
+import { supabase } from '../../lib/supabase';
 
-export default function Auth() {
+export default function AuthScreen() {
   const router = useRouter();
-  const [mode, setMode] = useState('signin');
+  const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   async function handleSubmit() {
-    if (!email || !password || (mode === 'signup' && !username)) { Alert.alert('Fill in all fields'); return; }
+    setError('');
+    if (!email.trim() || !password.trim()) {
+      setError('Please fill in all fields.');
+      return;
+    }
+    if (mode === 'signup' && !name.trim()) {
+      setError('Please enter your name.');
+      return;
+    }
     setLoading(true);
     try {
-      if (mode === 'signup') {
-        await signUp(email, password, username);
-        Alert.alert('Account created!', 'Check your email to confirm, then sign in.');
-        setMode('signin');
+      if (mode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
       } else {
-        await signIn(email, password);
-        router.replace('/');
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        if (data.user) {
+          await supabase.from('profiles').upsert({
+            id: data.user.id,
+            name: name.trim(),
+            email: email.trim(),
+          });
+        }
       }
+      router.replace('/');
     } catch (e) {
-      Alert.alert('Error', e.message);
+      setError(e.message);
     } finally {
       setLoading(false);
     }
@@ -32,41 +48,77 @@ export default function Auth() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.inner}>
-        <Text style={styles.logo}>🏃 RunIt</Text>
-        <Text style={styles.tagline}>Find pickup games near you</Text>
-        <View style={styles.toggle}>
-          <TouchableOpacity style={[styles.toggleBtn, mode === 'signin' && styles.toggleActive]} onPress={() => setMode('signin')}>
-            <Text style={[styles.toggleText, mode === 'signin' && styles.toggleTextActive]}>Sign In</Text>
+      <KeyboardAvoidingView style={styles.inner} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.logo}>
+          <Text style={styles.logoEmoji}>🏃</Text>
+          <Text style={styles.logoText}>RunIt</Text>
+          <Text style={styles.logoSub}>Find pickup games near you</Text>
+        </View>
+
+        <View style={styles.form}>
+          {mode === 'signup' && (
+            <TextInput
+              style={styles.input}
+              placeholder="Your name"
+              placeholderTextColor="#444"
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+            />
+          )}
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="#444"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#444"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <TouchableOpacity
+            style={[styles.btn, loading && { opacity: 0.6 }]}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            {loading
+              ? <ActivityIndicator color="#000" />
+              : <Text style={styles.btnText}>{mode === 'login' ? 'Log In' : 'Create Account'}</Text>
+            }
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.toggleBtn, mode === 'signup' && styles.toggleActive]} onPress={() => setMode('signup')}>
-            <Text style={[styles.toggleText, mode === 'signup' && styles.toggleTextActive]}>Sign Up</Text>
+
+          <TouchableOpacity onPress={() => { setMode(m => m === 'login' ? 'signup' : 'login'); setError(''); }}>
+            <Text style={styles.switchText}>
+              {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
+            </Text>
           </TouchableOpacity>
         </View>
-        {mode === 'signup' && (
-          <TextInput style={styles.input} placeholder="Username" placeholderTextColor="#444" value={username} onChangeText={setUsername} autoCapitalize="none" />
-        )}
-        <TextInput style={styles.input} placeholder="Email" placeholderTextColor="#444" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-        <TextInput style={styles.input} placeholder="Password" placeholderTextColor="#444" value={password} onChangeText={setPassword} secureTextEntry />
-        <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={loading}>
-          {loading ? <ActivityIndicator color="#0a0a0a" /> : <Text style={styles.buttonText}>{mode === 'signin' ? 'Sign In' : 'Create Account'}</Text>}
-        </TouchableOpacity>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  inner: { flex: 1, paddingHorizontal: 28, justifyContent: 'center' },
-  logo: { color: '#ffffff', fontSize: 36, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
-  tagline: { color: '#666', fontSize: 15, textAlign: 'center', marginBottom: 40 },
-  toggle: { flexDirection: 'row', backgroundColor: '#111', borderRadius: 12, padding: 4, marginBottom: 28 },
-  toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  toggleActive: { backgroundColor: '#00ff87' },
-  toggleText: { color: '#666', fontWeight: '600' },
-  toggleTextActive: { color: '#0a0a0a' },
-  input: { backgroundColor: '#111', borderRadius: 12, borderWidth: 1, borderColor: '#1e1e1e', color: '#ffffff', fontSize: 15, padding: 14, marginBottom: 12 },
-  button: { backgroundColor: '#00ff87', borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8 },
-  buttonText: { color: '#0a0a0a', fontSize: 16, fontWeight: 'bold' },
+  container: { flex: 1, backgroundColor: '#000' },
+  inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 28 },
+  logo: { alignItems: 'center', marginBottom: 48 },
+  logoEmoji: { fontSize: 64, marginBottom: 8 },
+  logoText: { color: '#fff', fontSize: 36, fontWeight: '800', letterSpacing: -1 },
+  logoSub: { color: '#888', fontSize: 15, marginTop: 6 },
+  form: { gap: 14 },
+  input: { backgroundColor: '#111', borderRadius: 14, padding: 16, color: '#fff', fontSize: 16, borderWidth: 1, borderColor: '#222' },
+  error: { color: '#ff4444', fontSize: 13, textAlign: 'center' },
+  btn: { backgroundColor: '#00ff87', borderRadius: 14, padding: 18, alignItems: 'center', marginTop: 4 },
+  btnText: { color: '#000', fontSize: 16, fontWeight: '800' },
+  switchText: { color: '#888', fontSize: 14, textAlign: 'center', marginTop: 8 },
 });

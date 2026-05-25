@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { supabase } from '../lib/supabase';
 import { useState, useCallback } from 'react';
 import { getGames } from '../lib/games';
 
@@ -42,6 +43,9 @@ export default function Profile() {
           </View>
           <Text style={styles.name}>Tarik</Text>
           <Text style={styles.location}>📍 Jersey City, NJ</Text>
+        <TouchableOpacity onPress={() => supabase.auth.signOut()} style={styles.signOutBtn}>
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
         </View>
 
         <View style={styles.statsRow}>
@@ -138,5 +142,7 @@ const styles = StyleSheet.create({
   timeBadge: { backgroundColor: '#1a1a1a', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#333' },
   timeBadgeText: { color: '#00ff87', fontSize: 12, fontWeight: '600' },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between' },
+  signOutBtn: { marginTop: 12, borderWidth: 1, borderColor: "#ff4444", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6 },
+  signOutText: { color: "#ff4444", fontSize: 13, fontWeight: "600" },
   cardMeta: { color: '#666', fontSize: 12 },
 });
