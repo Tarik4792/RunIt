@@ -39,6 +39,7 @@ export default function CreateGame() {
         max_players: parseInt(maxPlayers),
         level,
         host_name: username,
+        host_id: profile?.id ?? null,
         players: [],
       });
       router.back();
