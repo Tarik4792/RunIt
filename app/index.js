@@ -68,29 +68,43 @@ export default function Home() {
       ) : (
         <ScrollView style={styles.feed} showsVerticalScrollIndicator={false}>
           {filtered.map(game => {
+            const isCancelled = game.status === 'cancelled';
             const players = game.players?.length ?? 0;
             const spotsLeft = game.max_players - players;
             const pct = Math.round((players / game.max_players) * 100);
             return (
-              <TouchableOpacity key={game.id} style={styles.card} onPress={() => router.push(`/game/${game.id}`)}>
-                <View style={styles.cardTop}>
+              <TouchableOpacity
+                key={game.id}
+                style={[styles.card, isCancelled && styles.cardCancelled]}
+                onPress={() => router.push(`/game/${game.id}`)}
+              >
+                {isCancelled && (
+                  <View style={styles.cancelledBanner}>
+                    <Text style={styles.cancelledBannerText}>❌ CANCELLED{game.cancel_reason ? ` · ${game.cancel_reason}` : ''}</Text>
+                  </View>
+                )}
+                <View style={[styles.cardTop, isCancelled && { opacity: 0.5 }]}>
                   <Text style={styles.cardEmoji}>{game.sport}</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.cardTitle}>{game.title}</Text>
+                    <Text style={[styles.cardTitle, isCancelled && styles.cardTitleCancelled]}>{game.title}</Text>
                     <Text style={styles.cardLocation}>📍 {game.location}</Text>
                   </View>
                   <View style={styles.timeBadge}>
                     <Text style={styles.timeBadgeText}>{game.time}</Text>
                   </View>
                 </View>
-                <View style={styles.cardBottom}>
-                  <Text style={styles.cardMeta}>{game.level}</Text>
-                  <Text style={styles.cardMeta}>{players}/{game.max_players} players</Text>
-                  <Text style={[styles.cardMeta, spotsLeft <= 2 && { color: '#ff4444' }]}>{spotsLeft} spots left</Text>
-                </View>
-                <View style={styles.progressBg}>
-                  <View style={[styles.progressFill, { width: `${pct}%` }]} />
-                </View>
+                {!isCancelled && (
+                  <>
+                    <View style={styles.cardBottom}>
+                      <Text style={styles.cardMeta}>{game.level}</Text>
+                      <Text style={styles.cardMeta}>{players}/{game.max_players} players</Text>
+                      <Text style={[styles.cardMeta, spotsLeft <= 2 && { color: '#ff4444' }]}>{spotsLeft} spots left</Text>
+                    </View>
+                    <View style={styles.progressBg}>
+                      <View style={[styles.progressFill, { width: `${pct}%` }]} />
+                    </View>
+                  </>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -117,10 +131,14 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   emptySubText: { color: '#888', fontSize: 14, marginTop: 6 },
-  card: { backgroundColor: '#111', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#222' },
+  card: { backgroundColor: '#111', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#222', overflow: 'hidden' },
+  cardCancelled: { borderColor: '#ff4444', backgroundColor: '#0d0000' },
+  cancelledBanner: { backgroundColor: '#1a0000', borderRadius: 8, padding: 8, marginBottom: 10, alignItems: 'center' },
+  cancelledBannerText: { color: '#ff4444', fontSize: 12, fontWeight: '700' },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   cardEmoji: { fontSize: 32 },
   cardTitle: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  cardTitleCancelled: { textDecorationLine: 'line-through', color: '#888' },
   cardLocation: { color: '#888', fontSize: 13, marginTop: 2 },
   timeBadge: { backgroundColor: '#1a1a1a', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#333' },
   timeBadgeText: { color: '#00ff87', fontSize: 12, fontWeight: '600' },
