@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { useAuth } from '../../lib/auth';
 import { addGame } from '../../lib/games';
 
 const SPORTS = ['🏀', '⚽', '🏈', '🎾', '🏐', '🏒', '⚾', '🏉'];
@@ -10,6 +11,8 @@ const DAYS = ['Today', 'Tomorrow', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Su
 const TIMES = ['6:00am', '7:00am', '8:00am', '9:00am', '10:00am', '11:00am', '12:00pm', '1:00pm', '2:00pm', '3:00pm', '4:00pm', '5:00pm', '6:00pm', '7:00pm', '8:00pm', '9:00pm'];
 
 export default function CreateGame() {
+  const { profile } = useAuth();
+  const username = profile?.username ?? 'You';
   const router = useRouter();
   const [sport, setSport] = useState('🏀');
   const [title, setTitle] = useState('');
@@ -35,7 +38,7 @@ export default function CreateGame() {
         time: `${day} ${time}`,
         max_players: parseInt(maxPlayers),
         level,
-        host_name: 'You',
+        host_name: username,
         players: [],
       });
       router.back();

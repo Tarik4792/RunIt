@@ -3,6 +3,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { getGame, deleteGame } from '../../lib/games';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../lib/auth';
 
 const CANCEL_REASONS = [
   '🌧️ Bad weather',
@@ -16,6 +17,8 @@ const CANCEL_REASONS = [
 export default function GameDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const { profile } = useAuth();
+  const username = profile?.username ?? 'You';
   const [game, setGame] = useState(null);
   const [loading, setLoading] = useState(true);
   const [joined, setJoined] = useState(false);
@@ -34,8 +37,9 @@ export default function GameDetail() {
       try {
         const data = await getGame(id);
         setGame(data);
-        setCheckedIn((data.checked_in ?? []).includes('You'));
-        setLeftEarly((data.left_early ?? []).includes('You'));
+        setCheckedIn((data.checked_in ?? []).includes(username));
+        setLeftEarly((data.left_early ?? []).includes(username));
+        setJoined((data.players ?? []).includes(username));
       } catch (e) {
         console.error(e);
       } finally {
@@ -43,7 +47,7 @@ export default function GameDetail() {
       }
     }
     load();
-  }, [id]);
+  }, [id, username]);
 
   useEffect(() => {
     if (!id) return;
@@ -79,7 +83,7 @@ export default function GameDetail() {
     setNewMessage('');
     const { error } = await supabase
       .from('messages')
-      .insert([{ game_id: id, sender_name: 'You', body }]);
+      .insert([{ game_id: id, sender_name: username, body }]);
     if (error) Alert.alert('Error', error.message);
     setSending(false);
   }
@@ -89,12 +93,12 @@ export default function GameDetail() {
     setCheckedIn(newVal);
     setLeftEarly(false);
     const current = game.checked_in ?? [];
-    const updated = newVal ? [...current.filter(n => n !== 'You'), 'You'] : current.filter(n => n !== 'You');
+    const updated = newVal ? [...current.filter(n => n !== username), username] : current.filter(n => n !== username);
     const { error } = await supabase
       .from('games')
-      .update({ checked_in: updated, left_early: (game.left_early ?? []).filter(n => n !== 'You') })
+      .update({ checked_in: updated, left_early: (game.left_early ?? []).filter(n => n !== username) })
       .eq('id', id);
-    if (!error) setGame(g => ({ ...g, checked_in: updated, left_early: (g.left_early ?? []).filter(n => n !== 'You') }));
+    if (!error) setGame(g => ({ ...g, checked_in: updated, left_early: (g.left_early ?? []).filter(n => n !== username) }));
   }
 
   async function handleLeftEarly() {
@@ -102,12 +106,24 @@ export default function GameDetail() {
     setLeftEarly(newVal);
     setCheckedIn(false);
     const current = game.left_early ?? [];
-    const updated = newVal ? [...current.filter(n => n !== 'You'), 'You'] : current.filter(n => n !== 'You');
+    const updated = newVal ? [...current.filter(n => n !== username), username] : current.filter(n => n !== username);
     const { error } = await supabase
       .from('games')
-      .update({ left_early: updated, checked_in: (game.checked_in ?? []).filter(n => n !== 'You') })
+      .update({ left_early: updated, checked_in: (game.checked_in ?? []).filter(n => n !== username) })
       .eq('id', id);
-    if (!error) setGame(g => ({ ...g, left_early: updated, checked_in: (g.checked_in ?? []).filter(n => n !== 'You') }));
+    if (!error) setGame(g => ({ ...g, left_early: updated, checked_in: (g.checked_in ?? []).filter(n => n !== username) }));
+  }
+
+  async function handleJoin() {
+    const newVal = !joined;
+    setJoined(newVal);
+    const current = game.players ?? [];
+    const updated = newVal ? [...current.filter(n => n !== username), username] : current.filter(n => n !== username);
+    const { error } = await supabase
+      .from('games')
+      .update({ players: updated })
+      .eq('id', id);
+    if (!error) setGame(g => ({ ...g, players: updated }));
   }
 
   async function handleCancelGame() {
@@ -142,8 +158,6 @@ export default function GameDetail() {
     ]);
   }
 
-  function handleJoin() { setJoined(j => !j); }
-
   if (loading) return (
     <SafeAreaView style={styles.container}>
       <View style={styles.center}><ActivityIndicator color="#00ff87" size="large" /></View>
@@ -159,11 +173,10 @@ export default function GameDetail() {
     </SafeAreaView>
   );
 
-  const isHost = game.host_name === 'You' || game.host_name === 'tarik';
+  const isHost = game.host_name === username;
   const isCancelled = game.status === 'cancelled';
-  const basePlayers = game.players?.length ?? 0;
-  const players = joined ? basePlayers + 1 : basePlayers;
-  const spotsLeft = game.max_players - players;
+  const players = game.players ?? [];
+  const spotsLeft = game.max_players - players.length;
   const checkedInList = game.checked_in ?? [];
   const leftEarlyList = game.left_early ?? [];
 
@@ -200,7 +213,7 @@ export default function GameDetail() {
 
           <View style={styles.infoRow}>
             <View style={styles.infoCard}>
-              <Text style={styles.infoValue}>{players}</Text>
+              <Text style={styles.infoValue}>{players.length}</Text>
               <Text style={styles.infoLabel}>Players</Text>
             </View>
             <View style={styles.infoCard}>
@@ -226,17 +239,12 @@ export default function GameDetail() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Who's In</Text>
             <View style={styles.playerChips}>
-              {(game.players ?? []).map((p, i) => (
-                <View key={i} style={styles.playerChip}>
-                  <Text style={styles.playerChipText}>{p}</Text>
+              {players.map((p, i) => (
+                <View key={i} style={[styles.playerChip, p === username && styles.playerChipYou]}>
+                  <Text style={[styles.playerChipText, p === username && { color: '#000' }]}>{p}</Text>
                 </View>
               ))}
-              {joined && (
-                <View style={[styles.playerChip, styles.playerChipYou]}>
-                  <Text style={[styles.playerChipText, { color: '#000' }]}>You</Text>
-                </View>
-              )}
-              {!joined && players === 0 && <Text style={styles.sectionText}>No one yet — be the first!</Text>}
+              {players.length === 0 && <Text style={styles.sectionText}>No one yet — be the first!</Text>}
             </View>
           </View>
 
@@ -291,7 +299,7 @@ export default function GameDetail() {
             ) : (
               <View style={styles.messageList}>
                 {messages.map((msg) => {
-                  const isMe = msg.sender_name === 'You';
+                  const isMe = msg.sender_name === username;
                   return (
                     <View key={msg.id} style={[styles.messageBubble, isMe && styles.messageBubbleMe]}>
                       {!isMe && <Text style={styles.messageSender}>{msg.sender_name}</Text>}
@@ -336,7 +344,7 @@ export default function GameDetail() {
           <View style={styles.joinContainer}>
             <TouchableOpacity style={[styles.joinBtn, joined && styles.joinBtnActive]} onPress={handleJoin}>
               <Text style={[styles.joinBtnText, joined && { color: '#00ff87' }]}>
-                {joined ? '✓ You\'re In — Tap to Leave' : 'Join Game'}
+                {joined ? `✓ You're In — Tap to Leave` : 'Join Game'}
               </Text>
             </TouchableOpacity>
           </View>
