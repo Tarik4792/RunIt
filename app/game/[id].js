@@ -1,8 +1,17 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { getGame, deleteGame } from '../../lib/games';
 import { supabase } from '../../lib/supabase';
+
+const CANCEL_REASONS = [
+  '🌧️ Bad weather',
+  '👥 Not enough players',
+  '🏟️ Field unavailable',
+  '🤕 Injury',
+  '📅 Need to reschedule',
+  '✍️ Other',
+];
 
 export default function GameDetail() {
   const router = useRouter();
@@ -15,6 +24,9 @@ export default function GameDetail() {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -98,10 +110,28 @@ export default function GameDetail() {
     if (!error) setGame(g => ({ ...g, left_early: updated, checked_in: (g.checked_in ?? []).filter(n => n !== 'You') }));
   }
 
-  function handleJoin() { setJoined(j => !j); }
+  async function handleCancelGame() {
+    if (!cancelReason) {
+      Alert.alert('Select a reason', 'Please select a reason for cancelling.');
+      return;
+    }
+    setCancelling(true);
+    const { error } = await supabase
+      .from('games')
+      .update({ status: 'cancelled', cancel_reason: cancelReason })
+      .eq('id', id);
+    if (error) {
+      Alert.alert('Error', error.message);
+      setCancelling(false);
+      return;
+    }
+    setGame(g => ({ ...g, status: 'cancelled', cancel_reason: cancelReason }));
+    setShowCancelModal(false);
+    setCancelling(false);
+  }
 
-  async function handleDelete() {
-    Alert.alert('Cancel Game', 'Are you sure you want to delete this game?', [
+  async function handleDeleteGame() {
+    Alert.alert('Delete Game', 'This will permanently delete the game. Are you sure?', [
       { text: 'Keep it', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
@@ -111,6 +141,8 @@ export default function GameDetail() {
       }
     ]);
   }
+
+  function handleJoin() { setJoined(j => !j); }
 
   if (loading) return (
     <SafeAreaView style={styles.container}>
@@ -127,7 +159,8 @@ export default function GameDetail() {
     </SafeAreaView>
   );
 
-  const isHost = game.host_name === 'You';
+  const isHost = game.host_name === 'You' || game.host_name === 'tarik';
+  const isCancelled = game.status === 'cancelled';
   const basePlayers = game.players?.length ?? 0;
   const players = joined ? basePlayers + 1 : basePlayers;
   const spotsLeft = game.max_players - players;
@@ -140,20 +173,29 @@ export default function GameDetail() {
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
-        {isHost && (
-          <TouchableOpacity onPress={handleDelete}>
+        {isHost && !isCancelled && (
+          <TouchableOpacity onPress={() => setShowCancelModal(true)}>
             <Text style={styles.cancelText}>Cancel Game</Text>
           </TouchableOpacity>
         )}
       </View>
 
+      {isCancelled && (
+        <View style={styles.cancelledBanner}>
+          <Text style={styles.cancelledBannerTitle}>❌ Game Cancelled</Text>
+          {game.cancel_reason && (
+            <Text style={styles.cancelledBannerReason}>{game.cancel_reason}</Text>
+          )}
+        </View>
+      )}
+
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
-          <View style={styles.hero}>
+          <View style={[styles.hero, isCancelled && { opacity: 0.5 }]}>
             <Text style={styles.heroEmoji}>{game.sport}</Text>
             <Text style={styles.heroTitle}>{game.title}</Text>
             <Text style={styles.heroLocation}>📍 {game.location}</Text>
-            {isHost && <View style={styles.hostBadge}><Text style={styles.hostBadgeText}>You're hosting</Text></View>}
+            {isHost && !isCancelled && <View style={styles.hostBadge}><Text style={styles.hostBadgeText}>You're hosting</Text></View>}
           </View>
 
           <View style={styles.infoRow}>
@@ -198,47 +240,49 @@ export default function GameDetail() {
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Attendance</Text>
-            <View style={styles.attendanceRow}>
-              <TouchableOpacity
-                style={[styles.attendanceBtn, checkedIn && styles.attendanceBtnActive]}
-                onPress={handleCheckIn}
-              >
-                <Text style={styles.attendanceBtnIcon}>✅</Text>
-                <Text style={[styles.attendanceBtnText, checkedIn && { color: '#00ff87' }]}>
-                  {checkedIn ? "You're in!" : 'Check In'}
-                </Text>
-                {checkedInList.length > 0 && (
-                  <Text style={styles.attendanceCount}>{checkedInList.length} here</Text>
-                )}
-              </TouchableOpacity>
+          {!isCancelled && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Attendance</Text>
+              <View style={styles.attendanceRow}>
+                <TouchableOpacity
+                  style={[styles.attendanceBtn, checkedIn && styles.attendanceBtnActive]}
+                  onPress={handleCheckIn}
+                >
+                  <Text style={styles.attendanceBtnIcon}>✅</Text>
+                  <Text style={[styles.attendanceBtnText, checkedIn && { color: '#00ff87' }]}>
+                    {checkedIn ? "You're in!" : 'Check In'}
+                  </Text>
+                  {checkedInList.length > 0 && (
+                    <Text style={styles.attendanceCount}>{checkedInList.length} here</Text>
+                  )}
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.attendanceBtn, leftEarly && styles.attendanceBtnLeft]}
-                onPress={handleLeftEarly}
-              >
-                <Text style={styles.attendanceBtnIcon}>🏃💨</Text>
-                <Text style={[styles.attendanceBtnText, leftEarly && { color: '#ff9500' }]}>
-                  {leftEarly ? 'You left early' : 'Left Early'}
-                </Text>
-                {leftEarlyList.length > 0 && (
-                  <Text style={styles.attendanceCount}>{leftEarlyList.length} left</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {(checkedInList.length > 0 || leftEarlyList.length > 0) && (
-              <View style={styles.attendanceSummary}>
-                {checkedInList.length > 0 && (
-                  <Text style={styles.attendanceSummaryText}>✅ Showed up: {checkedInList.join(', ')}</Text>
-                )}
-                {leftEarlyList.length > 0 && (
-                  <Text style={[styles.attendanceSummaryText, { color: '#ff9500' }]}>🏃 Left early: {leftEarlyList.join(', ')}</Text>
-                )}
+                <TouchableOpacity
+                  style={[styles.attendanceBtn, leftEarly && styles.attendanceBtnLeft]}
+                  onPress={handleLeftEarly}
+                >
+                  <Text style={styles.attendanceBtnIcon}>🏃💨</Text>
+                  <Text style={[styles.attendanceBtnText, leftEarly && { color: '#ff9500' }]}>
+                    {leftEarly ? 'You left early' : 'Left Early'}
+                  </Text>
+                  {leftEarlyList.length > 0 && (
+                    <Text style={styles.attendanceCount}>{leftEarlyList.length} left</Text>
+                  )}
+                </TouchableOpacity>
               </View>
-            )}
-          </View>
+
+              {(checkedInList.length > 0 || leftEarlyList.length > 0) && (
+                <View style={styles.attendanceSummary}>
+                  {checkedInList.length > 0 && (
+                    <Text style={styles.attendanceSummaryText}>✅ Showed up: {checkedInList.join(', ')}</Text>
+                  )}
+                  {leftEarlyList.length > 0 && (
+                    <Text style={[styles.attendanceSummaryText, { color: '#ff9500' }]}>🏃 Left early: {leftEarlyList.join(', ')}</Text>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Chat</Text>
@@ -257,28 +301,30 @@ export default function GameDetail() {
                 })}
               </View>
             )}
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.input}
-                placeholder="Say something..."
-                placeholderTextColor="#444"
-                value={newMessage}
-                onChangeText={setNewMessage}
-                onSubmitEditing={sendMessage}
-                returnKeyType="send"
-              />
-              <TouchableOpacity
-                style={[styles.sendBtn, (!newMessage.trim() || sending) && { opacity: 0.4 }]}
-                onPress={sendMessage}
-                disabled={!newMessage.trim() || sending}
-              >
-                <Text style={styles.sendBtnText}>↑</Text>
-              </TouchableOpacity>
-            </View>
+            {!isCancelled && (
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Say something..."
+                  placeholderTextColor="#444"
+                  value={newMessage}
+                  onChangeText={setNewMessage}
+                  onSubmitEditing={sendMessage}
+                  returnKeyType="send"
+                />
+                <TouchableOpacity
+                  style={[styles.sendBtn, (!newMessage.trim() || sending) && { opacity: 0.4 }]}
+                  onPress={sendMessage}
+                  disabled={!newMessage.trim() || sending}
+                >
+                  <Text style={styles.sendBtnText}>↑</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           {isHost && (
-            <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
+            <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteGame}>
               <Text style={styles.deleteBtnText}>🗑 Delete Game</Text>
             </TouchableOpacity>
           )}
@@ -286,7 +332,7 @@ export default function GameDetail() {
           <View style={{ height: 120 }} />
         </ScrollView>
 
-        {!isHost && (
+        {!isHost && !isCancelled && (
           <View style={styles.joinContainer}>
             <TouchableOpacity style={[styles.joinBtn, joined && styles.joinBtnActive]} onPress={handleJoin}>
               <Text style={[styles.joinBtnText, joined && { color: '#00ff87' }]}>
@@ -295,7 +341,53 @@ export default function GameDetail() {
             </TouchableOpacity>
           </View>
         )}
+
+        {!isHost && isCancelled && (
+          <View style={styles.joinContainer}>
+            <View style={[styles.joinBtn, { backgroundColor: '#1a0000' }]}>
+              <Text style={[styles.joinBtnText, { color: '#ff4444' }]}>Game Cancelled</Text>
+            </View>
+          </View>
+        )}
       </KeyboardAvoidingView>
+
+      <Modal visible={showCancelModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Cancel Game</Text>
+            <Text style={styles.modalSubtitle}>Select a reason so players know what happened</Text>
+
+            <View style={styles.reasonList}>
+              {CANCEL_REASONS.map(reason => (
+                <TouchableOpacity
+                  key={reason}
+                  style={[styles.reasonBtn, cancelReason === reason && styles.reasonBtnActive]}
+                  onPress={() => setCancelReason(reason)}
+                >
+                  <Text style={[styles.reasonText, cancelReason === reason && styles.reasonTextActive]}>
+                    {reason}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.confirmCancelBtn, (!cancelReason || cancelling) && { opacity: 0.5 }]}
+              onPress={handleCancelGame}
+              disabled={!cancelReason || cancelling}
+            >
+              {cancelling
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.confirmCancelText}>Confirm Cancellation</Text>
+              }
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.dismissBtn} onPress={() => { setShowCancelModal(false); setCancelReason(''); }}>
+              <Text style={styles.dismissText}>Never mind, keep the game</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -308,6 +400,9 @@ const styles = StyleSheet.create({
   cancelText: { color: '#ff4444', fontSize: 14 },
   errorText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   backLink: { color: '#00ff87', fontSize: 15, marginTop: 12 },
+  cancelledBanner: { backgroundColor: '#1a0000', borderWidth: 1, borderColor: '#ff4444', marginHorizontal: 20, borderRadius: 14, padding: 16, marginBottom: 8, alignItems: 'center' },
+  cancelledBannerTitle: { color: '#ff4444', fontSize: 16, fontWeight: '800' },
+  cancelledBannerReason: { color: '#ff8888', fontSize: 13, marginTop: 4 },
   hero: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 },
   heroEmoji: { fontSize: 64, marginBottom: 12 },
   heroTitle: { color: '#fff', fontSize: 26, fontWeight: '800', textAlign: 'center' },
@@ -351,4 +446,17 @@ const styles = StyleSheet.create({
   joinBtn: { backgroundColor: '#00ff87', borderRadius: 16, padding: 18, alignItems: 'center' },
   joinBtnActive: { backgroundColor: '#111', borderWidth: 1, borderColor: '#00ff87' },
   joinBtnText: { color: '#000', fontSize: 16, fontWeight: '800' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#111', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  modalTitle: { color: '#fff', fontSize: 20, fontWeight: '800', marginBottom: 6 },
+  modalSubtitle: { color: '#888', fontSize: 14, marginBottom: 20 },
+  reasonList: { gap: 10, marginBottom: 24 },
+  reasonBtn: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#222' },
+  reasonBtnActive: { borderColor: '#ff4444', backgroundColor: '#1a0000' },
+  reasonText: { color: '#aaa', fontSize: 15 },
+  reasonTextActive: { color: '#ff4444', fontWeight: '600' },
+  confirmCancelBtn: { backgroundColor: '#ff4444', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 12 },
+  confirmCancelText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  dismissBtn: { alignItems: 'center', padding: 12 },
+  dismissText: { color: '#888', fontSize: 14 },
 });
