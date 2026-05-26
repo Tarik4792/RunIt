@@ -147,15 +147,9 @@ export default function GameDetail() {
   }
 
   async function handleDeleteGame() {
-    Alert.alert('Delete Game', 'This will permanently delete the game. Are you sure?', [
-      { text: 'Keep it', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          try { await deleteGame(id); router.back(); }
-          catch (e) { Alert.alert('Error', e.message); }
-        }
-      }
-    ]);
+    if (!window.confirm('Delete this game permanently? This cannot be undone.')) return;
+    try { await deleteGame(id); router.back(); }
+    catch (e) { alert(e.message); }
   }
 
   if (loading) return (
