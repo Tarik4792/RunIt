@@ -1,9 +1,41 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Animated } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { getGames } from '../lib/games';
 
 const FILTERS = ['All', '🏀', '⚽', '🏈', '🎾', '🏐', '🏒', '⚾'];
+
+function SkeletonCard() {
+  const opacity = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.8, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <Animated.View style={[styles.card, { opacity }]}>
+      <View style={styles.skCardTop}>
+        <View style={styles.skEmoji} />
+        <View style={{ flex: 1, gap: 8 }}>
+          <View style={styles.skTitle} />
+          <View style={styles.skLocation} />
+        </View>
+        <View style={styles.skBadge} />
+      </View>
+      <View style={styles.skBottom}>
+        <View style={styles.skMeta} />
+        <View style={[styles.skMeta, { width: '28%' }]} />
+        <View style={[styles.skMeta, { width: '22%' }]} />
+      </View>
+      <View style={styles.skProgress} />
+    </Animated.View>
+  );
+}
 
 export default function Home() {
   const router = useRouter();
@@ -57,9 +89,11 @@ export default function Home() {
       </View>
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color="#00ff87" size="large" />
-        </View>
+        <ScrollView style={styles.feed} showsVerticalScrollIndicator={false}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </ScrollView>
       ) : filtered.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyText}>No games found</Text>
@@ -133,7 +167,7 @@ const styles = StyleSheet.create({
   emptySubText: { color: '#888', fontSize: 14, marginTop: 6 },
   card: { backgroundColor: '#111', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#222', overflow: 'hidden' },
   cardCancelled: { borderColor: '#ff4444', backgroundColor: '#0d0000' },
-  cancelledBanner: { backgroundColor: '#1a0000', borderRadius: 8, padding: 8, marginBottom: 10, alignItems: 'center' },
+  cancelledBanner: { backgroundColor: '#1a0000', marginHorizontal: -16, marginTop: -16, paddingHorizontal: 16, paddingVertical: 8, marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#ff4444' },
   cancelledBannerText: { color: '#ff4444', fontSize: 12, fontWeight: '700' },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   cardEmoji: { fontSize: 32 },
@@ -146,4 +180,12 @@ const styles = StyleSheet.create({
   cardMeta: { color: '#666', fontSize: 12 },
   progressBg: { height: 4, backgroundColor: '#222', borderRadius: 2 },
   progressFill: { height: 4, backgroundColor: '#00ff87', borderRadius: 2 },
+  skCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  skEmoji: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#222' },
+  skTitle: { height: 14, width: '60%', backgroundColor: '#222', borderRadius: 6 },
+  skLocation: { height: 11, width: '40%', backgroundColor: '#222', borderRadius: 6 },
+  skBadge: { width: 80, height: 24, backgroundColor: '#222', borderRadius: 12 },
+  skBottom: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  skMeta: { height: 11, width: '20%', backgroundColor: '#222', borderRadius: 6 },
+  skProgress: { height: 4, backgroundColor: '#222', borderRadius: 2 },
 });
