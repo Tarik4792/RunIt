@@ -1,19 +1,35 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { useAuth } from '../../lib/auth';
 import { addGame } from '../../lib/games';
+import { useAuth } from '../../lib/auth';
 
 const SPORTS = ['🏀', '⚽', '🏈', '🎾', '🏐', '🏒', '⚾', '🏉'];
 const LEVELS = ['Casual', 'All levels', 'Intermediate', 'Advanced'];
 const MAX_PLAYERS = ['4', '6', '8', '10', '12', '14', '16', '20'];
 const DAYS = ['Today', 'Tomorrow', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const TIMES = ['6:00am', '7:00am', '8:00am', '9:00am', '10:00am', '11:00am', '12:00pm', '1:00pm', '2:00pm', '3:00pm', '4:00pm', '5:00pm', '6:00pm', '7:00pm', '8:00pm', '9:00pm'];
+const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
+
+async function geocodeLocation(location) {
+  try {
+    const query = encodeURIComponent(location);
+    const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${MAPBOX_TOKEN}&limit=1`);
+    const data = await res.json();
+    if (data.features && data.features.length > 0) {
+      const [lng, lat] = data.features[0].center;
+      return { lat, lng };
+    }
+  } catch (e) {
+    console.error('Geocoding error:', e);
+  }
+  return { lat: 40.7178, lng: -74.0431 };
+}
 
 export default function CreateGame() {
+  const router = useRouter();
   const { profile } = useAuth();
   const username = profile?.username ?? 'You';
-  const router = useRouter();
   const [sport, setSport] = useState('🏀');
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
@@ -30,6 +46,7 @@ export default function CreateGame() {
     }
     try {
       setSaving(true);
+      const coords = await geocodeLocation(location.trim());
       await addGame({
         sport,
         title: title.trim(),
@@ -41,6 +58,8 @@ export default function CreateGame() {
         host_name: username,
         host_id: profile?.id ?? null,
         players: [],
+        lat: coords.lat,
+        lng: coords.lng,
       });
       router.back();
     } catch (e) {

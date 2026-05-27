@@ -41,7 +41,8 @@ export default function MapScreen() {
     return () => window.removeEventListener('message', handler);
   }, []);
 
-  const filtered = activeFilter === 'All' ? games : games.filter(g => g.sport === activeFilter);
+  const filtered = (activeFilter === 'All' ? games : games.filter(g => g.sport === activeFilter))
+    .filter(g => g.status !== 'cancelled');
 
   const mapHTML = `<!DOCTYPE html>
 <html>
@@ -88,9 +89,9 @@ map.on('load', function() {
   });
 
   const games = ${JSON.stringify(filtered)};
-  games.forEach(function(game, i) {
-    const lat = 40.7178 + (i % 3) * 0.012 - 0.012;
-    const lng = -74.0431 + (i % 2) * 0.018 - 0.009;
+  games.forEach(function(game) {
+    const lat = game.lat || 40.7178 + (Math.random() - 0.5) * 0.04;
+    const lng = game.lng || -74.0431 + (Math.random() - 0.5) * 0.04;
     const el = document.createElement('div');
     el.className = 'marker';
     el.innerHTML = game.sport || '🏃';
