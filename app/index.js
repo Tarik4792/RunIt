@@ -1,3 +1,4 @@
+import BottomNav from '../components/BottomNav';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Animated } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -145,6 +146,7 @@ export default function Home() {
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
+      <BottomNav />
     </SafeAreaView>
   );
 }

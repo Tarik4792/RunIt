@@ -1,3 +1,4 @@
+import BottomNav from '../components/BottomNav';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator, Platform, Linking } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -270,6 +271,7 @@ window.addEventListener('message', async function(e) {
           )}
         </View>
       )}
+      <BottomNav />
     </SafeAreaView>
   );
 }
