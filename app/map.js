@@ -160,15 +160,27 @@ window.addEventListener('message', async function(e) {
     }
 
     // Venue pins
-    if (venueType === 'All' || venueType === 'Gyms') {
-      const r = await fetch('http://localhost:3001?lat=40.7178&lng=-74.0431&radius=5000&type=gym&keyword=gym+fitness+sports');
-      const d = await r.json();
-      (d.results || []).forEach(p => addVenuePin(p, 'gym'));
-    }
-    if (venueType === 'All' || venueType === 'Fields') {
-      const r = await fetch('http://localhost:3001?lat=40.7178&lng=-74.0431&radius=5000&type=park&keyword=sports+field+court');
-      const d = await r.json();
-      (d.results || []).forEach(p => addVenuePin(p, 'field'));
+    const SEARCH_CENTERS = [
+      {lat:40.7831,lng:-73.9712},  // Manhattan
+      {lat:40.6782,lng:-73.9442},  // Brooklyn
+      {lat:40.7282,lng:-73.7949},  // Queens
+      {lat:40.8448,lng:-73.8648},  // Bronx
+      {lat:40.5795,lng:-74.1502},  // Staten Island
+      {lat:40.7178,lng:-74.0431},  // Jersey City
+      {lat:40.7357,lng:-74.1724},  // Newark
+    ];
+    const seen = new Set();
+    for (const c of SEARCH_CENTERS) {
+      if (venueType === 'All' || venueType === 'Gyms') {
+        const r = await fetch('http://localhost:3001?lat='+c.lat+'&lng='+c.lng+'&radius=3000&type=gym&keyword=gym+fitness+sports');
+        const d = await r.json();
+        (d.results || []).forEach(p => { if (!seen.has(p.place_id)) { seen.add(p.place_id); addVenuePin(p, 'gym'); } });
+      }
+      if (venueType === 'All' || venueType === 'Fields') {
+        const r = await fetch('http://localhost:3001?lat='+c.lat+'&lng='+c.lng+'&radius=3000&type=park&keyword=sports+field+court');
+        const d = await r.json();
+        (d.results || []).forEach(p => { if (!seen.has(p.place_id)) { seen.add(p.place_id); addVenuePin(p, 'field'); } });
+      }
     }
   } catch(err) { console.error('iframe error', err); }
 });
