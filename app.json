@@ -35,7 +35,8 @@
           "icon": "./assets/icon.png",
           "color": "#00ff87"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
