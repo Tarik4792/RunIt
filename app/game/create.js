@@ -28,8 +28,8 @@ async function geocodeLocation(location) {
 
 export default function CreateGame() {
   const router = useRouter();
-  const { profile } = useAuth();
-  const username = profile?.username ?? 'You';
+  const [profile, setProfile] = useState(null);
+  const username = 'You';
   const [sport, setSport] = useState('🏀');
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
