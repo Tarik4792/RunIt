@@ -6,7 +6,7 @@ import { useAuth } from '../../lib/auth';
 
 const SPORTS = ['🏀', '⚽', '🏈', '🎾', '🏐', '🏒', '⚾', '🏉'];
 const LEVELS = ['Casual', 'All levels', 'Intermediate', 'Advanced'];
-const MAX_PLAYERS = ['4', '6', '8', '10', '12', '14', '16', '20'];
+const MAX_PLAYERS = ['2', '4', '6', '8', '10', '12', '14', '16', '18', '20', '22'];
 const DAYS = ['Today', 'Tomorrow', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const TIMES = ['6:00am', '7:00am', '8:00am', '9:00am', '10:00am', '11:00am', '12:00pm', '1:00pm', '2:00pm', '3:00pm', '4:00pm', '5:00pm', '6:00pm', '7:00pm', '8:00pm', '9:00pm'];
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
