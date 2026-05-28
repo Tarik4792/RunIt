@@ -160,28 +160,31 @@ window.addEventListener('message', async function(e) {
     }
 
     // Venue pins
-    const SEARCH_CENTERS = [
-      {lat:40.7831,lng:-73.9712},  // Manhattan
-      {lat:40.6782,lng:-73.9442},  // Brooklyn
-      {lat:40.7282,lng:-73.7949},  // Queens
-      {lat:40.8448,lng:-73.8648},  // Bronx
-      {lat:40.5795,lng:-74.1502},  // Staten Island
-      {lat:40.7178,lng:-74.0431},  // Jersey City
-      {lat:40.7357,lng:-74.1724},  // Newark
-    ];
     const seen = new Set();
-    for (const c of SEARCH_CENTERS) {
-      if (venueType === 'All' || venueType === 'Gyms') {
-        const r = await fetch('http://localhost:3001?lat='+c.lat+'&lng='+c.lng+'&radius=3000&type=gym&keyword=gym+fitness+sports');
+    let venueTypeRef = msg.venueType;
+
+    async function loadVenuesAtCenter(lat, lng) {
+      if (venueTypeRef === 'All' || venueTypeRef === 'Gyms') {
+        const r = await fetch('http://localhost:3001?lat='+lat+'&lng='+lng+'&radius=5000&type=gym&keyword=gym+fitness+sports');
         const d = await r.json();
         (d.results || []).forEach(p => { if (!seen.has(p.place_id)) { seen.add(p.place_id); addVenuePin(p, 'gym'); } });
       }
-      if (venueType === 'All' || venueType === 'Fields') {
-        const r = await fetch('http://localhost:3001?lat='+c.lat+'&lng='+c.lng+'&radius=3000&type=park&keyword=sports+field+court');
+      if (venueTypeRef === 'All' || venueTypeRef === 'Fields') {
+        const r = await fetch('http://localhost:3001?lat='+lat+'&lng='+lng+'&radius=5000&type=park&keyword=sports+field+court');
         const d = await r.json();
         (d.results || []).forEach(p => { if (!seen.has(p.place_id)) { seen.add(p.place_id); addVenuePin(p, 'field'); } });
       }
     }
+
+    // Load at current center
+    const center = map.getCenter();
+    await loadVenuesAtCenter(center.lat, center.lng);
+
+    // Load more as user pans
+    map.on('moveend', async function() {
+      const c = map.getCenter();
+      await loadVenuesAtCenter(c.lat, c.lng);
+    });
   } catch(err) { console.error('iframe error', err); }
 });
 </script>
@@ -287,7 +290,7 @@ const styles = StyleSheet.create({
   venueTabTextActive: { color: '#fff', fontWeight: '600' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   gameCard: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#111', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: '#222' },
-  closeBtn: { position: 'absolute', top: 16, right: 16, width: 28, height: 28, borderRadius: 14, backgroundColor: '#222', justifyContent: 'center', alignItems: 'center' },
+  closeBtn: { position: 'absolute', top: -44, right: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center', zIndex: 100, borderWidth: 1, borderColor: '#555' },
   closeBtnText: { color: '#fff', fontSize: 12 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   cardEmoji: { fontSize: 32 },
