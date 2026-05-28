@@ -161,12 +161,12 @@ window.addEventListener('message', async function(e) {
 
     // Venue pins
     if (venueType === 'All' || venueType === 'Gyms') {
-      const r = await fetch('http://localhost:3001?lat=40.7178&lng=-74.0431&type=gym&keyword=gym+fitness+sports');
+      const r = await fetch('http://localhost:3001?lat=40.7178&lng=-74.0431&radius=5000&type=gym&keyword=gym+fitness+sports');
       const d = await r.json();
       (d.results || []).forEach(p => addVenuePin(p, 'gym'));
     }
     if (venueType === 'All' || venueType === 'Fields') {
-      const r = await fetch('http://localhost:3001?lat=40.7178&lng=-74.0431&type=park&keyword=sports+field+court');
+      const r = await fetch('http://localhost:3001?lat=40.7178&lng=-74.0431&radius=5000&type=park&keyword=sports+field+court');
       const d = await r.json();
       (d.results || []).forEach(p => addVenuePin(p, 'field'));
     }
