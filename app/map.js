@@ -198,7 +198,12 @@ window.addEventListener('message', async function(e) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}><Text style={styles.title}>Map</Text></View>
+      <View style={styles.header}>
+        <Text style={styles.title}>Map</Text>
+        <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/game/create')}>
+          <Text style={styles.addBtnText}>+ Game</Text>
+        </TouchableOpacity>
+      </View>
       <View style={{ height: 48, alignItems: 'center' }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           {FILTERS.map(f => (
@@ -264,9 +269,14 @@ window.addEventListener('message', async function(e) {
                 {selected.rating != null && <Text style={styles.cardMeta}>⭐ {selected.rating}</Text>}
                 {selected.open_now != null && <Text style={[styles.cardMeta, { color: selected.open_now ? '#00ff87' : '#ff4444' }]}>{selected.open_now ? '● Open now' : '● Closed'}</Text>}
               </View>
-              <TouchableOpacity style={[styles.viewBtn, { backgroundColor: selected.kind === 'gym' ? '#818cf8' : '#f59e0b' }]} onPress={() => Linking.openURL('https://www.google.com/maps/place/?q=place_id:' + selected.place_id)}>
-                <Text style={styles.viewBtnText}>Open in Maps →</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={[styles.viewBtn, { flex: 1, backgroundColor: selected.kind === 'gym' ? '#818cf8' : '#f59e0b' }]} onPress={() => Linking.openURL('https://www.google.com/maps/place/?q=place_id:' + selected.place_id)}>
+                  <Text style={styles.viewBtnText}>Open in Maps →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.viewBtn, { flex: 1, backgroundColor: '#00ff87' }]} onPress={() => { setSelected(null); router.push({ pathname: '/game/create', params: { location: selected.vicinity, venueName: selected.name } }); }}>
+                  <Text style={[styles.viewBtnText, { color: '#000' }]}>+ Game here</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         </View>
@@ -278,7 +288,9 @@ window.addEventListener('message', async function(e) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
+  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  addBtn: { backgroundColor: '#00ff87', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
+  addBtnText: { color: '#000', fontWeight: '700', fontSize: 14 },
   title: { color: '#fff', fontSize: 22, fontWeight: '700' },
   filterRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, alignItems: 'center' },
   filterChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#111', borderWidth: 1, borderColor: '#222' },

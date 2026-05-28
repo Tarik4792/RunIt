@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Tex
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { addGame } from '../../lib/games';
+import { useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../lib/auth';
 
 const SPORTS = ['🏀', '⚽', '🏈', '🎾', '🏐', '🏒', '⚾', '🏉'];
@@ -32,7 +33,8 @@ export default function CreateGame() {
   const username = 'You';
   const [sport, setSport] = useState('🏀');
   const [title, setTitle] = useState('');
-  const [location, setLocation] = useState('');
+  const params = useLocalSearchParams();
+  const [location, setLocation] = useState(params.location || '');
   const [day, setDay] = useState('Today');
   const [time, setTime] = useState('6:00pm');
   const [maxPlayers, setMaxPlayers] = useState('10');
@@ -61,7 +63,7 @@ export default function CreateGame() {
         lat: coords.lat,
         lng: coords.lng,
       });
-      router.back();
+      router.push('/');
     } catch (e) {
       alert('Failed to create game: ' + e.message);
     } finally {
@@ -72,7 +74,7 @@ export default function CreateGame() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.push('/')}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>New Game</Text>

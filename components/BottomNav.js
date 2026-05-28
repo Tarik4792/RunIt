@@ -4,20 +4,21 @@ import { useRouter, usePathname } from 'expo-router';
 export default function BottomNav() {
   const router = useRouter();
   const path = usePathname();
+  const isActive = (p) => path === p || (p === '/' && path === '/index');
 
   return (
     <View style={styles.nav}>
       <TouchableOpacity style={styles.item} onPress={() => router.push('/')}>
         <Text style={styles.icon}>🏃</Text>
-        <Text style={[styles.label, path === '/' && styles.active]}>Feed</Text>
+        <Text style={[styles.label, isActive('/') && styles.active]}>Feed</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.item} onPress={() => router.push('/map')}>
         <Text style={styles.icon}>🗺️</Text>
-        <Text style={[styles.label, path === '/map' && styles.active]}>Map</Text>
+        <Text style={[styles.label, isActive('/map') && styles.active]}>Map</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.item} onPress={() => router.push('/profile')}>
         <Text style={styles.icon}>👤</Text>
-        <Text style={[styles.label, path === '/profile' && styles.active]}>Profile</Text>
+        <Text style={[styles.label, isActive('/profile') && styles.active]}>Profile</Text>
       </TouchableOpacity>
     </View>
   );
