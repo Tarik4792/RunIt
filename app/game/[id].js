@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { Share, View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { getGame, deleteGame } from '../../lib/games';
@@ -361,6 +361,17 @@ export default function GameDetail() {
             )}
           </View>
 
+          <TouchableOpacity style={styles.shareBtn} onPress={() => {
+            const url = `${window.location.origin}/game/${game.id}`;
+            if (navigator.share) {
+              navigator.share({ title: game.title, text: `Join my pickup game: ${game.title} at ${game.location}`, url });
+            } else {
+              navigator.clipboard.writeText(url);
+              alert('Link copied to clipboard!');
+            }
+          }}>
+            <Text style={styles.shareBtnText}>🔗 Share Game</Text>
+          </TouchableOpacity>
           {isHost && (
             <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteGame}>
               <Text style={styles.deleteBtnText}>🗑 Delete Game</Text>
@@ -550,6 +561,8 @@ const styles = StyleSheet.create({
   input: { flex: 1, backgroundColor: '#111', borderRadius: 24, paddingHorizontal: 16, paddingVertical: 12, color: '#fff', fontSize: 15, borderWidth: 1, borderColor: '#222' },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#00ff87', justifyContent: 'center', alignItems: 'center' },
   sendBtnText: { color: '#000', fontSize: 18, fontWeight: '800' },
+  shareBtn: { backgroundColor: '#111', borderRadius: 12, padding: 14, alignItems: 'center', marginHorizontal: 20, marginBottom: 10, borderWidth: 1, borderColor: '#333' },
+  shareBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
   deleteBtn: { marginHorizontal: 20, marginTop: 16, borderWidth: 1, borderColor: '#ff4444', borderRadius: 14, padding: 16, alignItems: 'center' },
   deleteBtnText: { color: '#ff4444', fontSize: 15, fontWeight: '700' },
   joinContainer: { padding: 20, backgroundColor: '#000', borderTopWidth: 1, borderTopColor: '#111' },
