@@ -166,12 +166,12 @@ window.addEventListener('message', async function(e) {
 
     async function loadVenuesAtCenter(lat, lng) {
       if (venueTypeRef === 'All' || venueTypeRef === 'Gyms') {
-        const r = await fetch('http://localhost:3001?lat='+lat+'&lng='+lng+'&radius=5000&type=gym&keyword=gym+fitness+sports');
+        const r = await fetch('https://runit-navy.vercel.app/api/places?lat='+lat+'&lng='+lng+'&radius=5000&type=gym&keyword=gym+fitness+sports');
         const d = await r.json();
         (d.results || []).forEach(p => { if (!seen.has(p.place_id)) { seen.add(p.place_id); addVenuePin(p, 'gym'); } });
       }
       if (venueTypeRef === 'All' || venueTypeRef === 'Fields') {
-        const r = await fetch('http://localhost:3001?lat='+lat+'&lng='+lng+'&radius=5000&type=park&keyword=sports+field+court');
+        const r = await fetch('https://runit-navy.vercel.app/api/places?lat='+lat+'&lng='+lng+'&radius=5000&type=park&keyword=sports+field+court');
         const d = await r.json();
         (d.results || []).forEach(p => { if (!seen.has(p.place_id)) { seen.add(p.place_id); addVenuePin(p, 'field'); } });
       }
