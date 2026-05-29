@@ -1,5 +1,5 @@
 import BottomNav from '../components/BottomNav';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Animated } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Animated } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { getGames } from '../lib/games';
@@ -41,6 +41,7 @@ function SkeletonCard() {
 export default function Home() {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState('All');
+  const [search, setSearch] = useState('');
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -61,7 +62,11 @@ export default function Home() {
     }, [])
   );
 
-  const filtered = activeFilter === 'All' ? games : games.filter(g => g.sport === activeFilter);
+  const filtered = games.filter(g => {
+    const matchesSport = activeFilter === 'All' || g.sport === activeFilter;
+    const matchesSearch = search.trim() === '' || g.title.toLowerCase().includes(search.toLowerCase()) || g.location.toLowerCase().includes(search.toLowerCase());
+    return matchesSport && matchesSearch;
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -75,6 +80,20 @@ export default function Home() {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search games or locations..."
+          placeholderTextColor="#444"
+          value={search}
+          onChangeText={setSearch}
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')} style={styles.searchClear}>
+            <Text style={{ color: '#888', fontSize: 16 }}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
       <View style={{ height: 48, alignItems: 'center' }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           {FILTERS.map(f => (
@@ -97,8 +116,14 @@ export default function Home() {
         </ScrollView>
       ) : filtered.length === 0 ? (
         <View style={styles.center}>
-          <Text style={styles.emptyText}>No games found</Text>
-          <Text style={styles.emptySubText}>Be the first — create one!</Text>
+          <Text style={{ fontSize: 72, marginBottom: 16 }}>🔥</Text>
+          <Text style={styles.emptyText}>{search ? 'No games found' : 'No games yet'}</Text>
+          <Text style={styles.emptySubText}>{search ? `Try a different search` : 'Be the first to run it!'}</Text>
+          {!search && (
+            <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/game/create')}>
+              <Text style={styles.emptyBtnText}>+ Create a Game</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <ScrollView style={styles.feed} showsVerticalScrollIndicator={false}>
@@ -165,6 +190,11 @@ const styles = StyleSheet.create({
   filterTextActive: { color: '#000', fontWeight: '700' },
   feed: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, backgroundColor: '#111', borderRadius: 12, borderWidth: 1, borderColor: '#222', paddingHorizontal: 14 },
+  searchInput: { flex: 1, color: '#fff', fontSize: 14, paddingVertical: 10 },
+  searchClear: { padding: 4 },
+  emptyBtn: { marginTop: 20, backgroundColor: '#00ff87', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
+  emptyBtnText: { color: '#000', fontWeight: '700', fontSize: 14 },
   emptyText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   emptySubText: { color: '#888', fontSize: 14, marginTop: 6 },
   card: { backgroundColor: '#111', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#222', overflow: 'hidden' },
