@@ -217,6 +217,7 @@ export default function GameDetail() {
   const isCancelled = game.status === 'cancelled';
   const players = game.players ?? [];
   const spotsLeft = game.max_players - players.length;
+  const isFull = spotsLeft <= 0 && !joined;
   const checkedInList = game.checked_in ?? [];
   const leftEarlyList = game.left_early ?? [];
 
@@ -383,9 +384,13 @@ export default function GameDetail() {
 
         {!isHost && !isCancelled && (
           <View style={styles.joinContainer}>
-            <TouchableOpacity style={[styles.joinBtn, joined && styles.joinBtnActive]} onPress={handleJoin}>
-              <Text style={[styles.joinBtnText, joined && { color: '#00ff87' }]}>
-                {joined ? `✓ You're In — Tap to Leave` : 'Join Game'}
+            <TouchableOpacity
+              style={[styles.joinBtn, joined && styles.joinBtnActive, isFull && styles.joinBtnFull]}
+              onPress={isFull ? null : handleJoin}
+              disabled={isFull}
+            >
+              <Text style={[styles.joinBtnText, joined && { color: '#00ff87' }, isFull && { color: '#ff4444' }]}>
+                {joined ? `✓ You're In — Tap to Leave` : isFull ? '🔒 Game Full' : 'Join Game'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -568,6 +573,7 @@ const styles = StyleSheet.create({
   joinContainer: { padding: 20, backgroundColor: '#000', borderTopWidth: 1, borderTopColor: '#111' },
   joinBtn: { backgroundColor: '#00ff87', borderRadius: 16, padding: 18, alignItems: 'center' },
   joinBtnActive: { backgroundColor: '#111', borderWidth: 1, borderColor: '#00ff87' },
+  joinBtnFull: { backgroundColor: '#1a0000', borderWidth: 1, borderColor: '#ff4444' },
   joinBtnText: { color: '#000', fontSize: 16, fontWeight: '800' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: '#111', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },

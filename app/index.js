@@ -133,7 +133,7 @@ export default function Home() {
                     <View style={styles.cardBottom}>
                       <Text style={styles.cardMeta}>{game.level}</Text>
                       <Text style={styles.cardMeta}>{players}/{game.max_players} players</Text>
-                      <Text style={[styles.cardMeta, spotsLeft <= 2 && { color: '#ff4444' }]}>{spotsLeft} spots left</Text>
+                      <Text style={[styles.cardMeta, spotsLeft <= 2 && { color: '#ff4444' }]}>{spotsLeft <= 0 ? '🔒 Full' : `${spotsLeft} spots left`}</Text>
                     </View>
                     <View style={styles.progressBg}>
                       <View style={[styles.progressFill, { width: `${pct}%` }]} />
