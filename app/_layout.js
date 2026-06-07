@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { useRouter, useSegments } from 'expo-router';
-import { AuthProvider, useAuth } from '../lib/auth';
+import { AuthProvider, useAuth } from '../lib/AuthProvider';
 
 function RootLayoutNav() {
   const { user, loading } = useAuth();
@@ -11,7 +11,6 @@ function RootLayoutNav() {
   useEffect(() => {
     if (loading) return;
     const inAuthGroup = segments[0] === 'auth';
-    const inUsername = segments[0] === 'username';
     if (!user && !inAuthGroup) router.replace('/auth');
     if (user && inAuthGroup) router.replace('/');
   }, [user, loading, segments]);
