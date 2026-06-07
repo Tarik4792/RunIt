@@ -11,6 +11,7 @@ function RootLayoutNav() {
   useEffect(() => {
     if (loading) return;
     const inAuthGroup = segments[0] === 'auth';
+    const inUsername = segments[0] === 'username';
     if (!user && !inAuthGroup) router.replace('/auth');
     if (user && inAuthGroup) router.replace('/');
   }, [user, loading, segments]);
@@ -18,6 +19,7 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="auth/index" />
+      <Stack.Screen name="username" />
       <Stack.Screen name="index" />
       <Stack.Screen name="map" />
       <Stack.Screen name="profile" />
