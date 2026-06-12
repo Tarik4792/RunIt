@@ -5,6 +5,7 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/privacy", "destination": "/privacy.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/privacy.html", "destination": "/privacy.html" },
+    { "source": "/((?!privacy).*)", "destination": "/index.html" }
   ]
 }
