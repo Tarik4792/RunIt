@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx expo export --platform web",
+  "buildCommand": "npx expo export --platform web && cp public/privacy.html dist/privacy.html",
   "outputDirectory": "dist",
   "framework": null,
   "rewrites": [
