@@ -11,7 +11,8 @@ function RootLayoutNav() {
   useEffect(() => {
     if (loading) return;
     const inAuthGroup = segments[0] === 'login' || segments[0] === 'auth';
-    if (!user && !inAuthGroup) router.replace('/login');
+    const isPublicPage = segments[0] === 'support' || segments[0] === 'privacy';
+    if (!user && !inAuthGroup && !isPublicPage) router.replace('/login');
     if (user && inAuthGroup) router.replace('/');
   }, [user, loading, segments]);
 
@@ -23,6 +24,8 @@ function RootLayoutNav() {
       <Stack.Screen name="index" />
       <Stack.Screen name="map" />
       <Stack.Screen name="profile" />
+      <Stack.Screen name="support" />
+      <Stack.Screen name="privacy" />
       <Stack.Screen name="game/[id]" />
       <Stack.Screen name="game/create" />
     </Stack>
