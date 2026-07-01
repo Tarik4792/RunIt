@@ -3,19 +3,54 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Act
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { getGames } from '../lib/games';
+import * as Location from 'expo-location';
+
+const MapView = Platform.OS !== 'web' ? require('react-native-maps').default : null;
+const { Marker, Callout } = Platform.OS !== 'web' ? require('react-native-maps') : {};
 
 const FILTERS = ['All', '🏀', '⚽', '🏈', '🎾', '🏐', '🏒', '⚾'];
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
+const PLACES_API = 'https://runit-navy.vercel.app/api/places';
+
+const DEFAULT_REGION = {
+  latitude: 40.7178,
+  longitude: -74.0431,
+  latitudeDelta: 0.05,
+  longitudeDelta: 0.05,
+};
 
 export default function MapScreen() {
   const router = useRouter();
-  const [games, setGames] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState('All');
-  const [selected, setSelected] = useState(null);
-  const [venueType, setVenueType] = useState('All');
   const iframeRef = useRef(null);
+  const mapRef = useRef(null);
 
+  const [games, setGames] = useState([]);
+  const [gyms, setGyms] = useState([]);
+  const [fields, setFields] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [venueLoading, setVenueLoading] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('All');
+  const [venueType, setVenueType] = useState('All');
+  const [selected, setSelected] = useState(null);
+  const [region, setRegion] = useState(DEFAULT_REGION);
+
+  // Get user location on mount
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const loc = await Location.getCurrentPositionAsync({});
+      setRegion({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      });
+    })();
+  }, []);
+
+  // Load games
   useFocusEffect(
     useCallback(() => {
       async function load() {
@@ -33,8 +68,41 @@ export default function MapScreen() {
     }, [])
   );
 
-  // Listen for messages from iframe (pin taps)
+  // Load gyms and fields when venueType or region changes (native only)
   useEffect(() => {
+    if (Platform.OS === 'web') return;
+    if (venueType === 'Games') { setGyms([]); setFields([]); return; }
+
+    async function loadVenues() {
+      setVenueLoading(true);
+      const { latitude: lat, longitude: lng } = region;
+      try {
+        if (venueType === 'All' || venueType === 'Gyms') {
+          const r = await fetch(`${PLACES_API}?lat=${lat}&lng=${lng}&radius=5000&type=gym&keyword=gym+fitness+sports`);
+          const d = await r.json();
+          setGyms(d.results || []);
+        } else {
+          setGyms([]);
+        }
+        if (venueType === 'All' || venueType === 'Fields') {
+          const r = await fetch(`${PLACES_API}?lat=${lat}&lng=${lng}&radius=5000&type=park&keyword=sports+field+court`);
+          const d = await r.json();
+          setFields(d.results || []);
+        } else {
+          setFields([]);
+        }
+      } catch (e) {
+        console.error('Venue load error:', e);
+      } finally {
+        setVenueLoading(false);
+      }
+    }
+    loadVenues();
+  }, [venueType, region.latitude, region.longitude]);
+
+  // Web: listen for iframe pin taps
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
     const handler = (e) => {
       try {
         const payload = JSON.parse(e.data);
@@ -45,22 +113,17 @@ export default function MapScreen() {
     return () => window.removeEventListener('message', handler);
   }, []);
 
-  // Send data to iframe once it loads
   const sendDataToIframe = useCallback(() => {
-    if (!iframeRef.current) return;
+    if (Platform.OS !== 'web' || !iframeRef.current) return;
     const filtered = (activeFilter === 'All' ? games : games.filter(g => g.sport === activeFilter))
       .filter(g => g.status !== 'cancelled');
-    iframeRef.current.contentWindow?.postMessage(JSON.stringify({
-      type: 'INIT',
-      games: filtered,
-      venueType,
-    }), '*');
+    iframeRef.current.contentWindow?.postMessage(JSON.stringify({ type: 'INIT', games: filtered, venueType }), '*');
   }, [games, activeFilter, venueType]);
 
   const filtered = (activeFilter === 'All' ? games : games.filter(g => g.sport === activeFilter))
     .filter(g => g.status !== 'cancelled');
 
-  const mapHTML = `<!DOCTYPE html>
+  const mapHTML = Platform.OS === 'web' ? `<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -93,107 +156,56 @@ body { background:#111; }
 </div>
 <script>
 mapboxgl.accessToken = '${MAPBOX_TOKEN}';
-const map = new mapboxgl.Map({
-  container: 'map',
-  style: 'mapbox://styles/mapbox/satellite-streets-v12',
-  center: [-74.0431, 40.7178],
-  zoom: 13, pitch: 45, bearing: -10
-});
+const map = new mapboxgl.Map({ container:'map', style:'mapbox://styles/mapbox/satellite-streets-v12', center:[-74.0431,40.7178], zoom:13, pitch:45, bearing:-10 });
 map.addControl(new mapboxgl.NavigationControl());
-
-const gameMarkers = [];
-const venueMarkers = [];
-
-function clearMarkers(arr) { arr.forEach(m => m.remove()); arr.length = 0; }
-
-function addGamePin(game) {
-  const lat = game.lat || 40.7178 + (Math.random()-0.5)*0.04;
-  const lng = game.lng || -74.0431 + (Math.random()-0.5)*0.04;
-  const el = document.createElement('div');
-  el.className = 'marker-game';
-  el.innerHTML = game.sport || '🏃';
-  el.addEventListener('click', () => parent.postMessage(JSON.stringify(game), '*'));
-  const m = new mapboxgl.Marker(el).setLngLat([lng, lat]).addTo(map);
-  gameMarkers.push(m);
+const gameMarkers=[],venueMarkers=[];
+function clearMarkers(arr){arr.forEach(m=>m.remove());arr.length=0;}
+function addGamePin(game){
+  const lat=game.lat||40.7178+(Math.random()-0.5)*0.04,lng=game.lng||-74.0431+(Math.random()-0.5)*0.04;
+  const el=document.createElement('div');el.className='marker-game';el.innerHTML=game.sport||'🏃';
+  el.addEventListener('click',()=>parent.postMessage(JSON.stringify(game),'*'));
+  gameMarkers.push(new mapboxgl.Marker(el).setLngLat([lng,lat]).addTo(map));
 }
-
-function addVenuePin(place, kind) {
-  const lat = place.geometry.location.lat;
-  const lng = place.geometry.location.lng;
-  const el = document.createElement('div');
-  el.className = kind === 'gym' ? 'marker-gym' : 'marker-field';
-  el.innerHTML = kind === 'gym' ? '🏋️' : '🏟️';
-  el.addEventListener('click', () => {
-    parent.postMessage(JSON.stringify({
-      place_id: place.place_id, kind,
-      name: place.name, vicinity: place.vicinity,
-      rating: place.rating,
-      open_now: place.opening_hours ? place.opening_hours.open_now : null,
-      lat, lng,
-    }), '*');
-  });
-  const m = new mapboxgl.Marker(el).setLngLat([lng, lat]).addTo(map);
-  venueMarkers.push(m);
+function addVenuePin(place,kind){
+  const lat=place.geometry.location.lat,lng=place.geometry.location.lng;
+  const el=document.createElement('div');el.className=kind==='gym'?'marker-gym':'marker-field';
+  el.innerHTML=kind==='gym'?'🏋️':'🏟️';
+  el.addEventListener('click',()=>parent.postMessage(JSON.stringify({place_id:place.place_id,kind,name:place.name,vicinity:place.vicinity,rating:place.rating,open_now:place.opening_hours?place.opening_hours.open_now:null,lat,lng}),'*'));
+  venueMarkers.push(new mapboxgl.Marker(el).setLngLat([lng,lat]).addTo(map));
 }
-
-map.on('load', function() {
-  map.addLayer({
-    id: '3d-buildings', source: 'composite', 'source-layer': 'building',
-    filter: ['==', 'extrude', 'true'], type: 'fill-extrusion', minzoom: 12,
-    paint: { 'fill-extrusion-color': '#1a1a2e', 'fill-extrusion-height': ['get','height'], 'fill-extrusion-base': ['get','min_height'], 'fill-extrusion-opacity': 0.8 }
-  });
+map.on('load',function(){
+  map.addLayer({id:'3d-buildings',source:'composite','source-layer':'building',filter:['==','extrude','true'],type:'fill-extrusion',minzoom:12,paint:{'fill-extrusion-color':'#1a1a2e','fill-extrusion-height':['get','height'],'fill-extrusion-base':['get','min_height'],'fill-extrusion-opacity':0.8}});
 });
-
-// Listen for data from React Native
-window.addEventListener('message', async function(e) {
-  try {
-    const msg = JSON.parse(e.data);
-    if (msg.type !== 'INIT') return;
-
-    clearMarkers(gameMarkers);
-    clearMarkers(venueMarkers);
-
-    const { games, venueType } = msg;
-
-    // Game pins
-    if (venueType === 'All' || venueType === 'Games') {
-      games.forEach(addGamePin);
-    }
-
-    // Venue pins
-    const seen = new Set();
-    let venueTypeRef = msg.venueType;
-
-    async function loadVenuesAtCenter(lat, lng) {
-      if (venueTypeRef === 'All' || venueTypeRef === 'Gyms') {
-        const r = await fetch('https://runit-navy.vercel.app/api/places?lat='+lat+'&lng='+lng+'&radius=5000&type=gym&keyword=gym+fitness+sports');
-        const d = await r.json();
-        (d.results || []).forEach(p => { if (!seen.has(p.place_id)) { seen.add(p.place_id); addVenuePin(p, 'gym'); } });
-      }
-      if (venueTypeRef === 'All' || venueTypeRef === 'Fields') {
-        const r = await fetch('https://runit-navy.vercel.app/api/places?lat='+lat+'&lng='+lng+'&radius=5000&type=park&keyword=sports+field+court');
-        const d = await r.json();
-        (d.results || []).forEach(p => { if (!seen.has(p.place_id)) { seen.add(p.place_id); addVenuePin(p, 'field'); } });
-      }
-    }
-
-    // Load at current center
-    const center = map.getCenter();
-    await loadVenuesAtCenter(center.lat, center.lng);
-
-    // Load more as user pans
-    map.on('moveend', async function() {
-      const c = map.getCenter();
-      await loadVenuesAtCenter(c.lat, c.lng);
-    });
-  } catch(err) { console.error('iframe error', err); }
+const seen=new Set();
+async function loadVenuesAtCenter(lat,lng,venueTypeRef){
+  if(venueTypeRef==='All'||venueTypeRef==='Gyms'){
+    const r=await fetch('https://runit-navy.vercel.app/api/places?lat='+lat+'&lng='+lng+'&radius=5000&type=gym&keyword=gym+fitness+sports');
+    const d=await r.json();(d.results||[]).forEach(p=>{if(!seen.has(p.place_id)){seen.add(p.place_id);addVenuePin(p,'gym');}});
+  }
+  if(venueTypeRef==='All'||venueTypeRef==='Fields'){
+    const r=await fetch('https://runit-navy.vercel.app/api/places?lat='+lat+'&lng='+lng+'&radius=5000&type=park&keyword=sports+field+court');
+    const d=await r.json();(d.results||[]).forEach(p=>{if(!seen.has(p.place_id)){seen.add(p.place_id);addVenuePin(p,'field');}});
+  }
+}
+window.addEventListener('message',async function(e){
+  try{
+    const msg=JSON.parse(e.data);if(msg.type!=='INIT')return;
+    clearMarkers(gameMarkers);clearMarkers(venueMarkers);seen.clear();
+    const{games,venueType}=msg;
+    if(venueType==='All'||venueType==='Games')games.forEach(addGamePin);
+    const center=map.getCenter();
+    await loadVenuesAtCenter(center.lat,center.lng,venueType);
+    map.on('moveend',async function(){const c=map.getCenter();await loadVenuesAtCenter(c.lat,c.lng,venueType);});
+  }catch(err){console.error('iframe error',err);}
 });
 </script>
 </body>
-</html>`;
+</html>` : null;
 
-  const blob = typeof Blob !== 'undefined' ? new Blob([mapHTML], { type: 'text/html' }) : null;
-  const blobUrl = blob ? URL.createObjectURL(blob) : null;
+  const blobUrl = Platform.OS === 'web' && typeof Blob !== 'undefined' && typeof URL.createObjectURL === 'function'
+    ? URL.createObjectURL(new Blob([mapHTML], { type: 'text/html' }))
+    : null;
+
   const isVenue = selected && selected.place_id;
 
   return (
@@ -204,6 +216,7 @@ window.addEventListener('message', async function(e) {
           <Text style={styles.addBtnText}>+ Game</Text>
         </TouchableOpacity>
       </View>
+
       <View style={{ height: 48, alignItems: 'center' }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           {FILTERS.map(f => (
@@ -213,6 +226,7 @@ window.addEventListener('message', async function(e) {
           ))}
         </ScrollView>
       </View>
+
       <View style={styles.venueTabRow}>
         {['All', 'Games', 'Gyms', 'Fields'].map(t => (
           <TouchableOpacity key={t} style={[styles.venueTab, venueType === t && styles.venueTabActive]} onPress={() => { setVenueType(t); setSelected(null); }}>
@@ -220,28 +234,96 @@ window.addEventListener('message', async function(e) {
           </TouchableOpacity>
         ))}
       </View>
+
       {loading ? (
         <View style={styles.center}><ActivityIndicator color="#00ff87" size="large" /></View>
       ) : (
         <View style={{ flex: 1 }}>
+
+          {/* WEB: Mapbox iframe */}
           {Platform.OS === 'web' && blobUrl && (
-            <iframe
-              ref={iframeRef}
-              src={blobUrl}
-              style={{ flex: 1, border: 'none', width: '100%', height: '100%' }}
-              onLoad={sendDataToIframe}
-            />
+            <iframe ref={iframeRef} src={blobUrl} style={{ flex: 1, border: 'none', width: '100%', height: '100%' }} onLoad={sendDataToIframe} />
           )}
+
+          {/* NATIVE: Apple Maps via react-native-maps */}
+          {Platform.OS !== 'web' && MapView && (
+            <View style={{ flex: 1 }}>
+              <MapView
+                ref={mapRef}
+                style={StyleSheet.absoluteFillObject}
+                initialRegion={region}
+                region={region}
+                showsUserLocation
+                showsMyLocationButton
+                onRegionChangeComplete={(r) => setRegion(r)}
+              >
+                {/* Game pins */}
+                {(venueType === 'All' || venueType === 'Games') && filtered.map(game => (
+                  game.lat && game.lng ? (
+                    <Marker
+                      key={game.id}
+                      coordinate={{ latitude: game.lat, longitude: game.lng }}
+                      onPress={() => setSelected(game)}
+                      pinColor="#00ff87"
+                    >
+                      <View style={styles.gamePin}>
+                        <Text style={styles.gamePinText}>{game.sport || '🏃'}</Text>
+                      </View>
+                    </Marker>
+                  ) : null
+                ))}
+
+                {/* Gym pins */}
+                {(venueType === 'All' || venueType === 'Gyms') && gyms.map(gym => (
+                  <Marker
+                    key={gym.place_id}
+                    coordinate={{ latitude: gym.geometry.location.lat, longitude: gym.geometry.location.lng }}
+                    onPress={() => setSelected({ ...gym, kind: 'gym' })}
+                  >
+                    <View style={styles.gymPin}>
+                      <Text style={styles.venuePinText}>🏋️</Text>
+                    </View>
+                  </Marker>
+                ))}
+
+                {/* Field pins */}
+                {(venueType === 'All' || venueType === 'Fields') && fields.map(field => (
+                  <Marker
+                    key={field.place_id}
+                    coordinate={{ latitude: field.geometry.location.lat, longitude: field.geometry.location.lng }}
+                    onPress={() => setSelected({ ...field, kind: 'field' })}
+                  >
+                    <View style={styles.fieldPin}>
+                      <Text style={styles.venuePinText}>🏟️</Text>
+                    </View>
+                  </Marker>
+                ))}
+              </MapView>
+
+              {venueLoading && (
+                <View style={styles.venueLoadingBadge}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={styles.venueLoadingText}>Loading venues...</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Game card popup */}
           {selected && !isVenue && (
             <View style={styles.gameCard}>
-              <TouchableOpacity style={styles.closeBtn} onPress={() => setSelected(null)}><Text style={styles.closeBtnText}>✕</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.closeBtn} onPress={() => setSelected(null)}>
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
               <View style={styles.cardTop}>
                 <Text style={styles.cardEmoji}>{selected.sport}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardTitle}>{selected.title}</Text>
                   <Text style={styles.cardLocation}>📍 {selected.location}</Text>
                 </View>
-                <View style={styles.timeBadge}><Text style={styles.timeBadgeText}>{selected.time}</Text></View>
+                <View style={styles.timeBadge}>
+                  <Text style={styles.timeBadgeText}>{selected.time}</Text>
+                </View>
               </View>
               <View style={styles.cardBottom}>
                 <Text style={styles.cardMeta}>{selected.level}</Text>
@@ -252,9 +334,13 @@ window.addEventListener('message', async function(e) {
               </TouchableOpacity>
             </View>
           )}
+
+          {/* Venue card popup */}
           {selected && isVenue && (
             <View style={styles.gameCard}>
-              <TouchableOpacity style={styles.closeBtn} onPress={() => setSelected(null)}><Text style={styles.closeBtnText}>✕</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.closeBtn} onPress={() => setSelected(null)}>
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
               <View style={styles.cardTop}>
                 <Text style={styles.cardEmoji}>{selected.kind === 'gym' ? '🏋️' : '🏟️'}</Text>
                 <View style={{ flex: 1 }}>
@@ -262,18 +348,30 @@ window.addEventListener('message', async function(e) {
                   <Text style={styles.cardLocation}>📍 {selected.vicinity}</Text>
                 </View>
                 <View style={[styles.timeBadge, { backgroundColor: selected.kind === 'gym' ? '#1e1b4b' : '#1c1200', borderColor: selected.kind === 'gym' ? '#4338ca' : '#b45309' }]}>
-                  <Text style={[styles.timeBadgeText, { color: selected.kind === 'gym' ? '#818cf8' : '#f59e0b' }]}>{selected.kind === 'gym' ? 'Gym' : 'Field'}</Text>
+                  <Text style={[styles.timeBadgeText, { color: selected.kind === 'gym' ? '#818cf8' : '#f59e0b' }]}>
+                    {selected.kind === 'gym' ? 'Gym' : 'Field'}
+                  </Text>
                 </View>
               </View>
               <View style={styles.cardBottom}>
                 {selected.rating != null && <Text style={styles.cardMeta}>⭐ {selected.rating}</Text>}
-                {selected.open_now != null && <Text style={[styles.cardMeta, { color: selected.open_now ? '#00ff87' : '#ff4444' }]}>{selected.open_now ? '● Open now' : '● Closed'}</Text>}
+                {selected.open_now != null && (
+                  <Text style={[styles.cardMeta, { color: selected.open_now ? '#00ff87' : '#ff4444' }]}>
+                    {selected.open_now ? '● Open now' : '● Closed'}
+                  </Text>
+                )}
               </View>
               <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TouchableOpacity style={[styles.viewBtn, { flex: 1, backgroundColor: selected.kind === 'gym' ? '#818cf8' : '#f59e0b' }]} onPress={() => Linking.openURL('https://www.google.com/maps/place/?q=place_id:' + selected.place_id)}>
+                <TouchableOpacity
+                  style={[styles.viewBtn, { flex: 1, backgroundColor: selected.kind === 'gym' ? '#818cf8' : '#f59e0b' }]}
+                  onPress={() => Linking.openURL('https://www.google.com/maps/place/?q=place_id:' + selected.place_id)}
+                >
                   <Text style={styles.viewBtnText}>Open in Maps →</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.viewBtn, { flex: 1, backgroundColor: '#00ff87' }]} onPress={() => { setSelected(null); router.push({ pathname: '/game/create', params: { location: selected.vicinity, venueName: selected.name } }); }}>
+                <TouchableOpacity
+                  style={[styles.viewBtn, { flex: 1, backgroundColor: '#00ff87' }]}
+                  onPress={() => { setSelected(null); router.push({ pathname: '/game/create', params: { location: selected.vicinity, venueName: selected.name } }); }}
+                >
                   <Text style={[styles.viewBtnText, { color: '#000' }]}>+ Game here</Text>
                 </TouchableOpacity>
               </View>
@@ -303,6 +401,13 @@ const styles = StyleSheet.create({
   venueTabText: { color: '#555', fontSize: 13 },
   venueTabTextActive: { color: '#fff', fontWeight: '600' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  gamePin: { backgroundColor: '#00ff87', width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#000', shadowColor: '#00ff87', shadowOpacity: 0.5, shadowRadius: 6 },
+  gamePinText: { fontSize: 20 },
+  gymPin: { backgroundColor: '#818cf8', width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
+  fieldPin: { backgroundColor: '#f59e0b', width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
+  venuePinText: { fontSize: 17 },
+  venueLoadingBadge: { position: 'absolute', top: 12, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.75)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  venueLoadingText: { color: '#fff', fontSize: 13 },
   gameCard: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#111', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: '#222' },
   closeBtn: { position: 'absolute', top: -44, right: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center', zIndex: 100, borderWidth: 1, borderColor: '#555' },
   closeBtnText: { color: '#fff', fontSize: 12 },
